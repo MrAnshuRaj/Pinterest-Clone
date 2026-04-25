@@ -1,21 +1,27 @@
 import 'dart:math' as math;
 
+import 'package:clerk_flutter/clerk_flutter.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/config/clerk_config.dart';
+import '../../application/auth_providers.dart';
+import '../../data/services/clerk_auth_service.dart';
 import '../signup/signup_state.dart';
 import '../widgets/auth_button.dart';
 import '../widgets/auth_image_collage.dart';
 
-class AuthLandingScreen extends StatefulWidget {
+class AuthLandingScreen extends ConsumerStatefulWidget {
   const AuthLandingScreen({super.key});
 
   @override
-  State<AuthLandingScreen> createState() => _AuthLandingScreenState();
+  ConsumerState<AuthLandingScreen> createState() => _AuthLandingScreenState();
 }
 
-class _AuthLandingScreenState extends State<AuthLandingScreen> {
+class _AuthLandingScreenState extends ConsumerState<AuthLandingScreen> {
   final _emailController = TextEditingController();
+  bool _googleLoading = false;
 
   bool get _isIos => Theme.of(context).platform == TargetPlatform.iOS;
   bool get _hasValidEmail =>
@@ -38,8 +44,43 @@ class _AuthLandingScreenState extends State<AuthLandingScreen> {
     context.push('/signup', extra: _hasValidEmail ? email : null);
   }
 
-  void onGoogleSignIn() {
-    debugPrint('Continue with Google tapped');
+  Future<void> onGoogleSignIn() async {
+    if (_googleLoading) return;
+
+    FocusScope.of(context).unfocus();
+
+    if (!isClerkConfigured) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Clerk is not configured. Run with --dart-define=CLERK_PUBLISHABLE_KEY=your_key_here.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _googleLoading = true;
+    });
+
+    try {
+      final authState = ClerkAuth.of(context, listen: false);
+      final service = ref.read(clerkAuthServiceProvider(authState));
+      await service.signInWithGoogle(context);
+      if (mounted) context.go('/main');
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(friendlyClerkError(error))));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _googleLoading = false;
+        });
+      }
+    }
   }
 
   void onSignUp() {
@@ -47,7 +88,7 @@ class _AuthLandingScreenState extends State<AuthLandingScreen> {
   }
 
   void onLogin() {
-    debugPrint('Log in tapped');
+    context.push('/login');
   }
 
   @override
@@ -160,13 +201,27 @@ class _AuthLandingScreenState extends State<AuthLandingScreen> {
                           ),
                           const SizedBox(height: 14),
                           AuthButton(
-                            label: 'Continue with Google',
-                            onPressed: onGoogleSignIn,
+                            label: _googleLoading
+                                ? 'Please wait...'
+                                : 'Continue with Google',
+                            onPressed: _googleLoading ? () {} : onGoogleSignIn,
                             borderColor: const Color(0xFF454545),
                             leading: const _GoogleBadge(),
                           ),
                           const SizedBox(height: 18),
                           const _RecoveryCopy(),
+                          const SizedBox(height: 16),
+                          TextButton(
+                            onPressed: onLogin,
+                            child: const Text(
+                              'Already have an account? Log in',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
                           const SizedBox(height: 28),
                           const _LegalCopy(),
                         ],

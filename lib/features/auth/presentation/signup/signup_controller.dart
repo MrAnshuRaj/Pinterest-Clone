@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/services/clerk_auth_service.dart';
 import 'signup_state.dart';
 
 final signupControllerProvider = StateNotifierProvider.autoDispose
@@ -72,6 +73,23 @@ class SignupController extends StateNotifier<SignupState> {
 
   void goToTuning() {
     state = state.copyWith(currentStep: SignupStep.tuning);
+  }
+
+  Future<void> createClerkAccount(ClerkAuthService authService) {
+    return authService.signUpWithEmailAndPassword(
+      email: state.email,
+      password: state.password,
+      fullName: state.fullName,
+    );
+  }
+
+  Future<void> syncOnboardingProfileToClerk(ClerkAuthService authService) {
+    return authService.syncOnboardingProfileToClerk(
+      birthday: state.birthday,
+      gender: state.gender,
+      country: state.country,
+      selectedInterests: state.selectedInterests,
+    );
   }
 
   void goBack() {

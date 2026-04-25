@@ -1,39 +1,37 @@
+import 'package:clerk_flutter/clerk_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
-import 'features/auth/presentation/screens/auth_landing_screen.dart';
-import 'features/auth/presentation/signup/signup_flow_screen.dart';
-import 'features/home/presentation/screens/home_placeholder_screen.dart';
-
-final _router = GoRouter(
-  routes: [
-    GoRoute(path: '/', builder: (context, state) => const AuthLandingScreen()),
-    GoRoute(
-      path: '/signup',
-      builder: (context, state) {
-        return SignupFlowScreen(initialEmail: state.extra as String?);
-      },
-    ),
-    GoRoute(
-      path: '/home',
-      builder: (context, state) => const HomePlaceholderScreen(),
-    ),
-  ],
-);
+import 'app/router/app_router.dart';
+import 'core/config/clerk_config.dart';
 
 void main() {
-  runApp(const ProviderScope(child: PinterestCloneApp()));
+  if (!isClerkConfigured) {
+    runApp(const ProviderScope(child: PinterestCloneApp()));
+    return;
+  }
+
+  runApp(
+    ClerkAuth(
+      config: ClerkAuthConfig(
+        publishableKey: clerkPublishableKey,
+        loading: const _AppBootLoader(),
+      ),
+      child: const ProviderScope(child: PinterestCloneApp()),
+    ),
+  );
 }
 
-class PinterestCloneApp extends StatelessWidget {
+class PinterestCloneApp extends ConsumerWidget {
   const PinterestCloneApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final authState = isClerkConfigured ? ClerkAuth.of(context) : null;
+    final router = ref.watch(appRouterProvider(authState));
     final baseTheme = ThemeData.dark(useMaterial3: true);
 
-    return MaterialApp.router(
+    final app = MaterialApp.router(
       title: 'Pinterest Clone',
       debugShowCheckedModeBanner: false,
       theme: baseTheme.copyWith(
@@ -72,7 +70,33 @@ class PinterestCloneApp extends StatelessWidget {
           backgroundColor: Color(0xFF161616),
         ),
       ),
-      routerConfig: _router,
+      builder: (context, child) {
+        if (child == null) {
+          return const SizedBox.shrink();
+        }
+
+        return isClerkConfigured ? ClerkErrorListener(child: child) : child;
+      },
+      routerConfig: router,
+    );
+
+    return app;
+  }
+}
+
+class _AppBootLoader extends StatelessWidget {
+  const _AppBootLoader();
+
+  @override
+  Widget build(BuildContext context) {
+    return const MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: Scaffold(
+        backgroundColor: Colors.black,
+        body: Center(
+          child: CircularProgressIndicator(color: Color(0xFFE60023)),
+        ),
+      ),
     );
   }
 }

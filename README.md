@@ -2,6 +2,21 @@
 
 A pinterest clone
 
+## Clerk setup
+
+This app uses `clerk_flutter` for email/password auth, session restore, Google sign-in, and logout.
+
+1. Create an app in the Clerk dashboard.
+2. Enable Email/password authentication.
+3. Enable Google OAuth if you want the Google button to complete sign-in.
+4. Run the app with your publishable key:
+
+```bash
+flutter run --dart-define=CLERK_PUBLISHABLE_KEY=your_key_here
+```
+
+Google OAuth may require redirect/deep-link setup in your Clerk dashboard and mobile app settings, depending on how you configure the provider.
+
 ## Getting Started
 
 This project is a starting point for a Flutter application.
