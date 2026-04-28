@@ -42,6 +42,7 @@ dependencies:
   flutter_staggered_grid_view: ^0.7.0
   clerk_flutter: ^0.0.14-beta
   clerk_auth: ^0.0.14-beta
+  firebase_core: ^4.7.0
 
 dev_dependencies:
   flutter_test:

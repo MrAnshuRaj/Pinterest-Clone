@@ -1,11 +1,20 @@
+import 'dart:io';
+
 import 'package:clerk_flutter/clerk_flutter.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app/router/app_router.dart';
 import 'core/config/clerk_config.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  if (Platform.isAndroid || Platform.isIOS) {
+    await Firebase.initializeApp();
+  }
+
   if (!isClerkConfigured) {
     runApp(const ProviderScope(child: PinterestCloneApp()));
     return;

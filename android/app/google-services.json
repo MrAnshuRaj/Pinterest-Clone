@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "364628625664",
+    "project_id": "pinterest-clone-7ff5a",
+    "storage_bucket": "pinterest-clone-7ff5a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:364628625664:android:dd37f7a5a4384c0bdf0be5",
+        "android_client_info": {
+          "package_name": "com.anshu.pinterestclone.pinterest_clone"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB5nrbKDR2wegki2IHjRRNCCoAD8FL2S1o"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

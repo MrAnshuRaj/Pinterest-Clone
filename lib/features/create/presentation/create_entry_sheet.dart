@@ -78,11 +78,7 @@ class CreateEntrySheet extends StatelessWidget {
                   label: 'Board',
                   onTap: () {
                     Navigator.of(context).pop();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Board creation is coming soon.'),
-                      ),
-                    );
+                    context.push('/create/board');
                   },
                 ),
               ],

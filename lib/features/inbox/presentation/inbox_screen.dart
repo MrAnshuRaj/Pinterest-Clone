@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 class InboxScreen extends StatelessWidget {
   const InboxScreen({super.key, required this.onBrowseHome});
@@ -7,6 +8,19 @@ class InboxScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const updates = [
+      _InboxUpdate(
+        title: 'A beautiful life is your calling',
+        time: '5h',
+        type: _InboxUpdateType.image,
+      ),
+      _InboxUpdate(
+        title: 'Still searching? Explore ideas related to Travel',
+        time: '1d',
+        type: _InboxUpdateType.search,
+      ),
+    ];
+
     return SafeArea(
       bottom: false,
       child: Padding(
@@ -80,60 +94,17 @@ class InboxScreen extends StatelessWidget {
                 fontWeight: FontWeight.w800,
               ),
             ),
-            const Spacer(),
-            Center(
-              child: Column(
-                children: [
-                  const _SunglassesIllustration(),
-                  const SizedBox(height: 28),
-                  const Text(
-                    'Updates are on their way',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 26,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 28),
-                    child: Text(
-                      'Use updates to see activity on your Pins and boards and get tips on topics to explore. They’ll be here soon.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        height: 1.22,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 28),
-                  FilledButton(
-                    onPressed: onBrowseHome,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFF4A4B45),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 22,
-                        vertical: 14,
-                      ),
-                    ),
-                    child: const Text(
-                      'Browse home feed',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                ],
+            const SizedBox(height: 12),
+            for (final update in updates)
+              _UpdateRow(
+                update: update,
+                onTap: update.type == _InboxUpdateType.search
+                    ? () => context.push('/search/results/Travel')
+                    : () => ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Update opened')),
+                        ),
               ),
-            ),
-            const Spacer(flex: 2),
+            const Spacer(),
           ],
         ),
       ),
@@ -150,58 +121,136 @@ class InboxScreen extends StatelessWidget {
   }
 }
 
-class _SunglassesIllustration extends StatelessWidget {
-  const _SunglassesIllustration();
+enum _InboxUpdateType { image, search }
+
+class _InboxUpdate {
+  const _InboxUpdate({
+    required this.title,
+    required this.time,
+    required this.type,
+  });
+
+  final String title;
+  final String time;
+  final _InboxUpdateType type;
+}
+
+class _UpdateRow extends StatelessWidget {
+  const _UpdateRow({required this.update, required this.onTap});
+
+  final _InboxUpdate update;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 210,
-      height: 210,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Container(
-            width: 170,
-            height: 170,
-            decoration: const BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(
-                colors: [Color(0xFFC23886), Color(0xFF8F185E)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-            ),
-          ),
-          Positioned(
-            top: 54,
-            child: Container(
-              width: 170,
-              height: 68,
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 66,
+              height: 66,
               decoration: BoxDecoration(
-                border: Border.all(color: const Color(0xFFFF9345), width: 12),
-                borderRadius: BorderRadius.circular(28),
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF2B8F80), Color(0xFFFFC06C)],
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
+                color: const Color(0xFFEDEDE8),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: update.type == _InboxUpdateType.search
+                  ? const Icon(
+                      Icons.search_rounded,
+                      color: Colors.black,
+                      size: 42,
+                    )
+                  : const Center(
+                      child: Text(
+                        'FAMILY',
+                        style: TextStyle(
+                          color: Color(0xFF777777),
+                          fontSize: 8,
+                          letterSpacing: 1,
+                        ),
+                      ),
+                    ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  update.title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 21,
+                    fontWeight: FontWeight.w500,
+                    height: 1.12,
+                  ),
                 ),
               ),
             ),
-          ),
-          Positioned(
-            top: 38,
-            child: Container(
-              width: 116,
-              height: 16,
-              decoration: BoxDecoration(
-                color: const Color(0xFFFF6EB1),
-                borderRadius: BorderRadius.circular(999),
-              ),
+            Column(
+              children: [
+                Text(
+                  update.time,
+                  style: const TextStyle(
+                    color: Color(0xFFB5B5B5),
+                    fontSize: 15,
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => _showUpdateOptions(context),
+                  icon: const Icon(
+                    Icons.more_horiz_rounded,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
             ),
-          ),
-        ],
+          ],
+        ),
       ),
+    );
+  }
+
+  void _showUpdateOptions(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFF20211D),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                onTap: () => Navigator.of(context).pop(),
+                title: const Text(
+                  'Hide update',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+              ListTile(
+                onTap: () => Navigator.of(context).pop(),
+                title: const Text(
+                  'Turn off similar updates',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+              ListTile(
+                onTap: () => Navigator.of(context).pop(),
+                title: const Text(
+                  'Cancel',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
