@@ -51,7 +51,7 @@ class LanguageScreen extends ConsumerWidget {
                   ],
                 ),
                 onTap: () {
-                  ref.read(profileProvider.notifier).setLanguage(option);
+                  ref.read(profileControllerProvider).setLanguage(option);
                   context.pop();
                 },
               ),

@@ -10,7 +10,7 @@ class ProfileVisibilityScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(pinterestSettingsProvider);
-    final controller = ref.read(pinterestSettingsProvider.notifier);
+    final controller = ref.read(settingsControllerProvider);
     return Scaffold(
       backgroundColor: Colors.black,
       body: SafeArea(
@@ -22,7 +22,11 @@ class ProfileVisibilityScreen extends ConsumerWidget {
             const SizedBox(height: 28),
             const Text(
               'Manage how your profile can be viewed on and off of Pinterest',
-              style: TextStyle(color: pinterestTextGrey, fontSize: 20, height: 1.2),
+              style: TextStyle(
+                color: pinterestTextGrey,
+                fontSize: 20,
+                height: 1.2,
+              ),
             ),
             const SizedBox(height: 16),
             SettingsSwitchRow(
@@ -45,7 +49,9 @@ class ProfileVisibilityScreen extends ConsumerWidget {
                     builder: (context) => AlertDialog(
                       backgroundColor: const Color(0xFF20211D),
                       title: const Text('Search privacy enabled'),
-                      content: const Text('Search engines may take time to update.'),
+                      content: const Text(
+                        'Search engines may take time to update.',
+                      ),
                       actions: [
                         TextButton(
                           onPressed: () => Navigator.of(context).pop(),

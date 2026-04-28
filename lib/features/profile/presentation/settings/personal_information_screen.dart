@@ -32,7 +32,7 @@ class PersonalInformationScreen extends ConsumerWidget {
             SettingsRow(
               title: 'Birthdate',
               trailing: _Value(
-                profile.birthday == DateTime(0)
+                profile.birthday.year <= 1970
                     ? ''
                     : formatBirthday(profile.birthday),
               ),

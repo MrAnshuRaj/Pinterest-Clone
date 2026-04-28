@@ -117,6 +117,40 @@ class SettingsRow extends StatelessWidget {
   }
 }
 
+class PinterestStatusView extends StatelessWidget {
+  const PinterestStatusView({
+    super.key,
+    required this.message,
+    this.showSpinner = false,
+  });
+
+  final String message;
+  final bool showSpinner;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (showSpinner) ...[
+              const CircularProgressIndicator(color: pinterestRed),
+              const SizedBox(height: 16),
+            ],
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white, fontSize: 18),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class SettingsSwitchRow extends StatelessWidget {
   const SettingsSwitchRow({
     super.key,
@@ -235,4 +269,13 @@ String formatBirthday(DateTime date) {
     'Dec',
   ];
   return '${date.day} ${months[date.month - 1]} ${date.year}';
+}
+
+String formatRelativeDate(DateTime date) {
+  final difference = DateTime.now().difference(date);
+  if (difference.inMinutes < 1) return 'now';
+  if (difference.inHours < 1) return '${difference.inMinutes}m';
+  if (difference.inDays < 1) return '${difference.inHours}h';
+  if (difference.inDays < 7) return '${difference.inDays}d';
+  return formatBirthday(date);
 }

@@ -3,9 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../shared/widgets/pinterest_cached_image.dart';
+import '../../create/data/models/created_collage_model.dart';
+import '../../create/data/models/created_pin_model.dart';
 import '../../home/data/models/pin_model.dart';
-import '../../home/data/repositories/pin_repository.dart';
 import '../../saved/application/saved_providers.dart';
+import '../../saved/data/models/board_model.dart';
 import '../application/profile_providers.dart';
 import 'settings/settings_widgets.dart';
 import 'widgets/share_profile_sheet.dart';
@@ -23,9 +25,22 @@ class _PublicProfileScreenState extends ConsumerState<PublicProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final profileAsync = ref.watch(userProfileProvider);
     final profile = ref.watch(profileProvider);
-    final pins = ref.watch(pinRepositoryProvider).getMockPinsSync();
-    final boards = ref.watch(boardsProvider);
+    final savedPins = ref.watch(savedPinsListProvider);
+    final createdPins = ref.watch(createdPinsListProvider);
+    final boards = ref.watch(boardsListProvider);
+    final collages = ref.watch(collagesListProvider);
+
+    if (profileAsync.isLoading && profile.name.isEmpty) {
+      return const Scaffold(
+        backgroundColor: Colors.black,
+        body: PinterestStatusView(
+          message: 'Loading your profile...',
+          showSpinner: true,
+        ),
+      );
+    }
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -150,9 +165,13 @@ class _PublicProfileScreenState extends ConsumerState<PublicProfileScreen> {
             ),
             const SizedBox(height: 36),
             if (_tab == 0)
-              _CreatedGrid(pins: pins)
+              _CreatedGrid(pins: createdPins, author: profile.name)
             else
-              _SavedProfileContent(pins: pins, boards: boards),
+              _SavedProfileContent(
+                pins: savedPins,
+                boards: boards,
+                collages: collages,
+              ),
           ],
         ),
       ),
@@ -201,12 +220,22 @@ class _ProfileContentTab extends StatelessWidget {
 }
 
 class _CreatedGrid extends StatelessWidget {
-  const _CreatedGrid({required this.pins});
+  const _CreatedGrid({required this.pins, required this.author});
 
-  final List<PinModel> pins;
+  final List<CreatedPinModel> pins;
+  final String author;
 
   @override
   Widget build(BuildContext context) {
+    if (pins.isEmpty) {
+      return const Center(
+        child: Text(
+          'No created Pins yet',
+          style: TextStyle(color: Colors.white, fontSize: 18),
+        ),
+      );
+    }
+
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -216,11 +245,12 @@ class _CreatedGrid extends StatelessWidget {
         mainAxisSpacing: 8,
         childAspectRatio: 0.58,
       ),
-      itemCount: 3,
+      itemCount: pins.length,
       itemBuilder: (context, index) {
+        final pin = pins[index].toPinModel(author: author);
         return ClipRRect(
           borderRadius: BorderRadius.circular(14),
-          child: PinterestCachedImage(imageUrl: pins[index + 2].imageUrl),
+          child: PinterestCachedImage(imageUrl: pin.imageUrl),
         );
       },
     );
@@ -228,77 +258,125 @@ class _CreatedGrid extends StatelessWidget {
 }
 
 class _SavedProfileContent extends StatelessWidget {
-  const _SavedProfileContent({required this.pins, required this.boards});
+  const _SavedProfileContent({
+    required this.pins,
+    required this.boards,
+    required this.collages,
+  });
 
   final List<PinModel> pins;
-  final List<dynamic> boards;
+  final List<BoardModel> boards;
+  final List<CreatedCollageModel> collages;
 
   @override
   Widget build(BuildContext context) {
+    if (pins.isEmpty && boards.isEmpty && collages.isEmpty) {
+      return const Center(
+        child: Text(
+          'No saved ideas yet',
+          style: TextStyle(color: Colors.white, fontSize: 18),
+        ),
+      );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
+        Wrap(
+          spacing: 12,
+          runSpacing: 22,
           children: [
-            Expanded(
-              child: _MiniBoard(
+            if (pins.isNotEmpty)
+              _MiniBoard(
                 title: 'All Pins',
-                subtitle: '${pins.length} Pins · now',
+                subtitle:
+                    '${pins.length} ${pins.length == 1 ? 'Pin' : 'Pins'} · now',
                 urls: pins.take(4).map((pin) => pin.imageUrl).toList(),
+                width: 170,
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _MiniBoard(
-                title: boards.isEmpty ? 'Travel' : boards.first.name as String,
-                subtitle: boards.isEmpty
-                    ? '4 Pins · now'
-                    : '${boards.first.pinIds.length} Pins · now',
-                urls: boards.isEmpty
-                    ? pins.take(4).map((pin) => pin.imageUrl).toList()
-                    : boards.first.coverImageUrls as List<String>,
+            for (final board in boards)
+              _MiniBoard(
+                title: board.name,
+                subtitle:
+                    '${board.pinIds.length} ${board.pinIds.length == 1 ? 'Pin' : 'Pins'} · now',
+                urls: board.coverImageUrls,
+                width: 170,
               ),
-            ),
           ],
         ),
-        const SizedBox(height: 48),
-        Row(
-          children: [
-            const Expanded(
-              child: Text(
-                'Unorganized ideas',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 26,
-                  fontWeight: FontWeight.w900,
+        if (collages.isNotEmpty) ...[
+          const SizedBox(height: 42),
+          const Text(
+            'Collages',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 26,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 14),
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3,
+              crossAxisSpacing: 8,
+              mainAxisSpacing: 8,
+              childAspectRatio: 0.58,
+            ),
+            itemCount: collages.length,
+            itemBuilder: (context, index) {
+              final collage = collages[index];
+              final imageUrl = collage.previewImageUrl.isEmpty
+                  ? collage.imageUrls.first
+                  : collage.previewImageUrl;
+              return ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: PinterestCachedImage(imageUrl: imageUrl),
+              );
+            },
+          ),
+        ],
+        if (pins.isNotEmpty) ...[
+          const SizedBox(height: 42),
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Saved Pins',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 26,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
               ),
-            ),
-            FilledButton(
-              onPressed: () {},
-              style: pinterestButtonStyle(),
-              child: const Text('Organize'),
-            ),
-          ],
-        ),
-        const SizedBox(height: 14),
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3,
-            crossAxisSpacing: 8,
-            mainAxisSpacing: 8,
-            childAspectRatio: 0.68,
+              FilledButton(
+                onPressed: () {},
+                style: pinterestButtonStyle(),
+                child: const Text('Organize'),
+              ),
+            ],
           ),
-          itemCount: 6,
-          itemBuilder: (context, index) {
-            return ClipRRect(
-              borderRadius: BorderRadius.circular(14),
-              child: PinterestCachedImage(imageUrl: pins[index].imageUrl),
-            );
-          },
-        ),
+          const SizedBox(height: 14),
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3,
+              crossAxisSpacing: 8,
+              mainAxisSpacing: 8,
+              childAspectRatio: 0.68,
+            ),
+            itemCount: pins.length,
+            itemBuilder: (context, index) {
+              return ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: PinterestCachedImage(imageUrl: pins[index].imageUrl),
+              );
+            },
+          ),
+        ],
       ],
     );
   }
@@ -309,11 +387,13 @@ class _MiniBoard extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.urls,
+    this.width,
   });
 
   final String title;
   final String subtitle;
   final List<String> urls;
+  final double? width;
 
   @override
   Widget build(BuildContext context) {
@@ -322,30 +402,39 @@ class _MiniBoard extends StatelessWidget {
             'https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=700&q=85',
           ]
         : urls;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(14),
-          child: SizedBox(
-            height: 132,
-            child: PinterestCachedImage(imageUrl: images.first),
+
+    return SizedBox(
+      width: width,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(14),
+            child: SizedBox(
+              height: 132,
+              width: double.infinity,
+              child: PinterestCachedImage(imageUrl: images.first),
+            ),
           ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          title,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 19,
-            fontWeight: FontWeight.w900,
+          const SizedBox(height: 8),
+          Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 19,
+              fontWeight: FontWeight.w900,
+            ),
           ),
-        ),
-        Text(
-          subtitle,
-          style: const TextStyle(color: pinterestTextGrey, fontSize: 15),
-        ),
-      ],
+          Text(
+            subtitle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: pinterestTextGrey, fontSize: 15),
+          ),
+        ],
+      ),
     );
   }
 }

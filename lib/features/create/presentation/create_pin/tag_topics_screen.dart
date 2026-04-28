@@ -10,52 +10,10 @@ class TagTopicsScreen extends StatefulWidget {
 }
 
 class _TagTopicsScreenState extends State<TagTopicsScreen> {
-  final _controller = TextEditingController(text: 'Gift');
-  late final Set<String> _selected = {...widget.initialSelected};
-
-  static const _giftTopics = [
-    'Gift Box',
-    'Gift Basket',
-    'Christmas Gift Ideas',
-    'Gift Cards',
-    'Gift Guide',
-    'Gift Ideas For Men',
-    'Teacher Appreciation Gifts',
-    'Gift Bag',
-    'Gift Tags',
-    'Gift Packaging',
-    'Gift For Brother',
-    'Gifts For Him',
-    'Gift Card Holder',
-    'DIY Gifts',
-    'Gift Box Template',
-    'Gifts For Dad',
-    'Valentine Gifts',
-    'DIY Gift Box',
-    'Gifts For Friends',
-  ];
-
-  static const _wrapTopics = [
-    'Wrap Dress',
-    'Wrap Skirt',
-    'Wrap Around Porch',
-    'Wrap Bracelet',
-    'Lettuce Wrap Recipes',
-    'Plastic Wrap',
-    'Christmas Gift Wrapping',
-    'Head Wraps',
-    'DIY Wrap Bracelet',
-    'Tortilla Wraps',
-    'Bacon Wrapped',
-    'Leather Wrap Bracelet',
-    'Wire Wrap Jewelry',
-    'Veggie Wraps',
-    'Gift Wraps',
-    'African Head Wraps',
-    'Sandwich Wraps',
-    'Creative Gift Wraps',
-    'Wire Wrapping Tutorial',
-  ];
+  final _controller = TextEditingController();
+  late final Set<String> _selected = {
+    for (final topic in widget.initialSelected) _formatTopic(topic),
+  };
 
   @override
   void initState() {
@@ -69,13 +27,64 @@ class _TagTopicsScreenState extends State<TagTopicsScreen> {
     super.dispose();
   }
 
-  List<String> get _topics {
-    final query = _controller.text.toLowerCase();
-    final base = query.contains('wrap') ? _wrapTopics : _giftTopics;
-    if (query.trim().isEmpty) return base;
-    return base
-        .where((topic) => topic.toLowerCase().contains(query.trim()))
-        .toList();
+  String get _query => _controller.text.trim();
+
+  List<String> get _suggestedTopics {
+    final query = _query;
+    if (query.isEmpty) return const [];
+
+    final rawCandidates = <String>[
+      query,
+      ...query
+          .split(',')
+          .map((part) => part.trim())
+          .where((part) => part.isNotEmpty),
+      ...query
+          .split(RegExp(r'[\s,/]+'))
+          .map((part) => part.trim())
+          .where((part) => part.length >= 3),
+    ];
+
+    final suggestions = <String>[];
+    final seen = <String>{};
+    for (final candidate in rawCandidates) {
+      final formatted = _formatTopic(candidate);
+      final key = formatted.toLowerCase();
+      if (formatted.isEmpty || seen.contains(key) || _selected.contains(formatted)) {
+        continue;
+      }
+      seen.add(key);
+      suggestions.add(formatted);
+    }
+    return suggestions;
+  }
+
+  void _addTopic(String value) {
+    final formatted = _formatTopic(value);
+    if (formatted.isEmpty) return;
+
+    setState(() {
+      _selected.add(formatted);
+      _controller.clear();
+    });
+  }
+
+  String _formatTopic(String value) {
+    final cleaned = value
+        .replaceAll(RegExp(r'[_-]+'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    if (cleaned.isEmpty) return '';
+
+    return cleaned
+        .split(' ')
+        .where((word) => word.isNotEmpty)
+        .map((word) {
+          final lower = word.toLowerCase();
+          if (lower.length == 1) return lower.toUpperCase();
+          return '${lower[0].toUpperCase()}${lower.substring(1)}';
+        })
+        .join(' ');
   }
 
   @override
@@ -115,7 +124,9 @@ class _TagTopicsScreenState extends State<TagTopicsScreen> {
                     child: FilledButton(
                       onPressed: _selected.isEmpty
                           ? null
-                          : () => Navigator.of(context).pop(_selected.toList()),
+                          : () => Navigator.of(
+                              context,
+                            ).pop(_selected.toList(growable: false)),
                       style: FilledButton.styleFrom(
                         backgroundColor: const Color(0xFFE60023),
                         disabledBackgroundColor: const Color(0xFF4A4B45),
@@ -137,8 +148,12 @@ class _TagTopicsScreenState extends State<TagTopicsScreen> {
                     controller: _controller,
                     autofocus: true,
                     cursorColor: Colors.white,
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: _addTopic,
                     style: const TextStyle(color: Colors.white, fontSize: 20),
                     decoration: InputDecoration(
+                      hintText: 'Type a topic and press done',
+                      hintStyle: const TextStyle(color: Color(0xFF8C8C8C)),
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 22,
                         vertical: 18,
@@ -159,6 +174,22 @@ class _TagTopicsScreenState extends State<TagTopicsScreen> {
                       ),
                     ),
                   ),
+                  if (_query.isNotEmpty) ...[
+                    const SizedBox(height: 20),
+                    FilledButton.tonal(
+                      onPressed: () => _addTopic(_query),
+                      style: FilledButton.styleFrom(
+                        alignment: Alignment.centerLeft,
+                        backgroundColor: const Color(0xFF20211D),
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size.fromHeight(54),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      child: Text('Add "${_formatTopic(_query)}"'),
+                    ),
+                  ],
                   if (_selected.isNotEmpty) ...[
                     const SizedBox(height: 24),
                     const Text(
@@ -180,25 +211,38 @@ class _TagTopicsScreenState extends State<TagTopicsScreen> {
                       ],
                     ),
                   ],
-                  const SizedBox(height: 34),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 8,
-                    children: [
-                      for (final topic in _topics)
-                        _TopicChip(
-                          label: topic,
-                          selected: _selected.contains(topic),
-                          onTap: () {
-                            setState(() {
-                              _selected.contains(topic)
-                                  ? _selected.remove(topic)
-                                  : _selected.add(topic);
-                            });
-                          },
+                  const SizedBox(height: 28),
+                  if (_suggestedTopics.isNotEmpty) ...[
+                    const Text(
+                      'Suggestions',
+                      style: TextStyle(color: Color(0xFF9F9F9F), fontSize: 20),
+                    ),
+                    const SizedBox(height: 14),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 8,
+                      children: [
+                        for (final topic in _suggestedTopics)
+                          _TopicChip(
+                            label: topic,
+                            selected: false,
+                            onTap: () => _addTopic(topic),
+                          ),
+                      ],
+                    ),
+                  ] else if (_selected.isEmpty && _query.isEmpty) ...[
+                    const Padding(
+                      padding: EdgeInsets.only(top: 32),
+                      child: Text(
+                        'Start typing to create your own topics.',
+                        style: TextStyle(
+                          color: Color(0xFF9F9F9F),
+                          fontSize: 18,
+                          height: 1.4,
                         ),
-                    ],
-                  ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),

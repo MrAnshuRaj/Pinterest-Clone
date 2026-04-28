@@ -3,13 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../shared/widgets/pinterest_cached_image.dart';
-import '../../../home/data/models/pin_model.dart';
-import '../../../home/data/repositories/pin_repository.dart';
+import '../../data/models/created_collage_model.dart';
+import '../../../saved/application/saved_providers.dart';
 
 class CollagePublishScreen extends ConsumerStatefulWidget {
   const CollagePublishScreen({super.key, required this.collage});
 
-  final CreatedCollage collage;
+  final CreatedCollageModel collage;
 
   @override
   ConsumerState<CollagePublishScreen> createState() =>
@@ -30,29 +30,35 @@ class _CollagePublishScreenState extends ConsumerState<CollagePublishScreen> {
     super.dispose();
   }
 
-  CreatedCollage _collage({bool draft = false}) {
-    return CreatedCollage(
+  CreatedCollageModel _collage({bool draft = false}) {
+    return CreatedCollageModel(
       id: widget.collage.id,
       title: _titleController.text.trim().isEmpty
           ? (draft ? 'Draft collage' : 'My collage')
           : _titleController.text.trim(),
       description: _descriptionController.text.trim(),
       imageUrls: widget.collage.imageUrls,
+      previewImageUrl: widget.collage.previewImageUrl,
       createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
       isDraft: draft,
     );
   }
 
-  void _saveDraft() {
-    ref.read(draftCollagesProvider.notifier).add(_collage(draft: true));
+  Future<void> _saveDraft() async {
+    await ref
+        .read(savedContentControllerProvider)
+        .saveCollageDraft(_collage(draft: true));
+    if (!mounted) return;
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text('Collage saved for later')));
     context.go('/saved');
   }
 
-  void _create() {
-    ref.read(createdCollagesProvider.notifier).add(_collage());
+  Future<void> _create() async {
+    await ref.read(savedContentControllerProvider).createCollage(_collage());
+    if (!mounted) return;
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text('Collage created')));

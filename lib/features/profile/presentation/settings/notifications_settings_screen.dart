@@ -8,11 +8,7 @@ class NotificationsSettingsScreen extends ConsumerWidget {
   const NotificationsSettingsScreen({super.key});
 
   static const _sections = [
-    _NotificationSection('', [
-      'mentions',
-      'reminders',
-      'comments_with_photos',
-    ]),
+    _NotificationSection('', ['mentions', 'reminders', 'comments_with_photos']),
     _NotificationSection('Social activity', [
       'group_board_updates',
       'group_board_invites',
@@ -54,6 +50,7 @@ class NotificationsSettingsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(pinterestSettingsProvider);
+    final expandedId = ref.watch(expandedNotificationIdProvider);
     return Scaffold(
       backgroundColor: Colors.black,
       body: SafeArea(
@@ -78,8 +75,11 @@ class NotificationsSettingsScreen extends ConsumerWidget {
               ],
               for (final id in section.ids)
                 _NotificationRow(
-                  preference: settings.notifications[id]!,
-                  expanded: settings.expandedNotificationId == id,
+                  preference: notificationPreferences.firstWhere(
+                    (item) => item.id == id,
+                  ),
+                  channels: settings.notificationChannels(id),
+                  expanded: expandedId == id,
                 ),
             ],
           ],
@@ -99,15 +99,23 @@ class _NotificationSection {
 class _NotificationRow extends ConsumerWidget {
   const _NotificationRow({
     required this.preference,
+    required this.channels,
     required this.expanded,
   });
 
   final NotificationPreference preference;
+  final Map<String, bool> channels;
   final bool expanded;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final controller = ref.read(pinterestSettingsProvider.notifier);
+    final controller = ref.read(settingsControllerProvider);
+    final summary = [
+      if (preference.hasPush && (channels['push'] ?? false)) 'Push on',
+      if (preference.hasEmail && (channels['email'] ?? false)) 'email on',
+      if (preference.hasInApp && (channels['inApp'] ?? false)) 'in-app on',
+    ].join(', ');
+
     return InkWell(
       onTap: () => controller.setExpandedNotification(preference.id),
       child: Padding(
@@ -138,11 +146,8 @@ class _NotificationRow extends ConsumerWidget {
             ),
             if (!expanded)
               Text(
-                preference.summary,
-                style: const TextStyle(
-                  color: pinterestTextGrey,
-                  fontSize: 19,
-                ),
+                summary.isEmpty ? 'Off' : summary,
+                style: const TextStyle(color: pinterestTextGrey, fontSize: 19),
               )
             else ...[
               const SizedBox(height: 8),
@@ -162,7 +167,7 @@ class _NotificationRow extends ConsumerWidget {
               if (preference.hasPush)
                 _ChannelSwitch(
                   label: 'Push',
-                  value: preference.push,
+                  value: channels['push'] ?? false,
                   onChanged: (value) => controller.setNotificationChannel(
                     preference.id,
                     'push',
@@ -172,7 +177,7 @@ class _NotificationRow extends ConsumerWidget {
               if (preference.hasEmail)
                 _ChannelSwitch(
                   label: 'Email',
-                  value: preference.email,
+                  value: channels['email'] ?? false,
                   onChanged: (value) => controller.setNotificationChannel(
                     preference.id,
                     'email',
@@ -182,7 +187,7 @@ class _NotificationRow extends ConsumerWidget {
               if (preference.hasInApp)
                 _ChannelSwitch(
                   label: 'In-app',
-                  value: preference.inApp,
+                  value: channels['inApp'] ?? false,
                   onChanged: (value) => controller.setNotificationChannel(
                     preference.id,
                     'inApp',

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../application/profile_providers.dart';
+import '../../application/settings_providers.dart';
 import 'settings_widgets.dart';
 
 class AccountManagementScreen extends ConsumerWidget {
@@ -11,6 +12,7 @@ class AccountManagementScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profile = ref.watch(profileProvider);
+    final settings = ref.watch(pinterestSettingsProvider);
     return Scaffold(
       backgroundColor: Colors.black,
       body: SafeArea(
@@ -108,11 +110,11 @@ class AccountManagementScreen extends ConsumerWidget {
               title: 'App sounds',
               subtitle: 'Turn on for sounds from the Pinterest app',
               trailing: Switch(
-                value: profile.appSounds,
+                value: settings.appSounds,
                 activeThumbColor: Colors.white,
                 activeTrackColor: const Color(0xFF6265F6),
                 onChanged: (value) =>
-                    ref.read(profileProvider.notifier).setAppSounds(value),
+                    ref.read(settingsControllerProvider).setAppSounds(value),
               ),
             ),
             const SizedBox(height: 20),

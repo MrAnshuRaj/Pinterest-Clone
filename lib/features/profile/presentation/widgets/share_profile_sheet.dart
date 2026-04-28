@@ -22,7 +22,7 @@ class ShareProfileSheet extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profile = ref.watch(profileProvider);
-    final boards = ref.watch(boardsProvider);
+    final boards = ref.watch(boardsListProvider);
     final images = boards.isEmpty
         ? const [
             'https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=600&q=85',
@@ -152,7 +152,9 @@ class ShareProfileSheet extends ConsumerWidget {
                   color: pinterestGrey,
                   onTap: () async {
                     await Clipboard.setData(
-                      ClipboardData(text: 'https://pinterest.clone/${profile.username}'),
+                      ClipboardData(
+                        text: 'https://pinterest.clone/${profile.username}',
+                      ),
                     );
                     if (context.mounted) {
                       Navigator.of(context).pop();
@@ -162,13 +164,49 @@ class ShareProfileSheet extends ConsumerWidget {
                     }
                   },
                 ),
-                _ShareOption(label: 'WhatsApp', icon: Icons.chat_rounded, color: const Color(0xFF25D366), onTap: () => _snack(context)),
-                _ShareOption(label: 'Messages', icon: Icons.chat_bubble_rounded, color: const Color(0xFF35D95D), onTap: () => _snack(context)),
-                _ShareOption(label: 'Facebook', icon: Icons.facebook_rounded, color: const Color(0xFF1877F2), onTap: () => _snack(context)),
-                _ShareOption(label: 'Email', icon: Icons.mail_outline_rounded, color: Colors.white, iconColor: Colors.black, onTap: () => _snack(context)),
-                _ShareOption(label: 'Telegram', icon: Icons.send_rounded, color: const Color(0xFF2CA5E0), onTap: () => _snack(context)),
-                _ShareOption(label: 'Instagram', icon: Icons.camera_alt_outlined, color: const Color(0xFFE1306C), onTap: () => _snack(context)),
-                _ShareOption(label: 'More apps', icon: Icons.more_horiz_rounded, color: pinterestGrey, onTap: () => _snack(context)),
+                _ShareOption(
+                  label: 'WhatsApp',
+                  icon: Icons.chat_rounded,
+                  color: const Color(0xFF25D366),
+                  onTap: () => _snack(context),
+                ),
+                _ShareOption(
+                  label: 'Messages',
+                  icon: Icons.chat_bubble_rounded,
+                  color: const Color(0xFF35D95D),
+                  onTap: () => _snack(context),
+                ),
+                _ShareOption(
+                  label: 'Facebook',
+                  icon: Icons.facebook_rounded,
+                  color: const Color(0xFF1877F2),
+                  onTap: () => _snack(context),
+                ),
+                _ShareOption(
+                  label: 'Email',
+                  icon: Icons.mail_outline_rounded,
+                  color: Colors.white,
+                  iconColor: Colors.black,
+                  onTap: () => _snack(context),
+                ),
+                _ShareOption(
+                  label: 'Telegram',
+                  icon: Icons.send_rounded,
+                  color: const Color(0xFF2CA5E0),
+                  onTap: () => _snack(context),
+                ),
+                _ShareOption(
+                  label: 'Instagram',
+                  icon: Icons.camera_alt_outlined,
+                  color: const Color(0xFFE1306C),
+                  onTap: () => _snack(context),
+                ),
+                _ShareOption(
+                  label: 'More apps',
+                  icon: Icons.more_horiz_rounded,
+                  color: pinterestGrey,
+                  onTap: () => _snack(context),
+                ),
               ],
             ),
           ],
@@ -179,9 +217,9 @@ class ShareProfileSheet extends ConsumerWidget {
 
   void _snack(BuildContext context) {
     Navigator.of(context).pop();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Sharing is a demo action')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Sharing is a demo action')));
   }
 }
 

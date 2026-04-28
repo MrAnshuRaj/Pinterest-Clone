@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../data/models/created_collage_model.dart';
 import '../../../home/data/models/pin_model.dart';
-import '../../../home/data/repositories/pin_repository.dart';
+import '../../../saved/application/saved_providers.dart';
 import 'widgets/collage_bottom_toolbar.dart';
 import 'widgets/collage_canvas.dart';
 import 'widgets/collage_options_sheet.dart';
@@ -143,27 +144,33 @@ class _CollageEditorScreenState extends ConsumerState<CollageEditorScreen> {
     );
   }
 
-  void _saveDraft() {
-    ref.read(draftCollagesProvider.notifier).add(_collage(isDraft: true));
+  Future<void> _saveDraft() async {
+    await ref
+        .read(savedContentControllerProvider)
+        .saveCollageDraft(_collage(isDraft: true));
+    if (!mounted) return;
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text('Saved as draft')));
   }
 
-  CreatedCollage _collage({
+  CreatedCollageModel _collage({
     bool isDraft = false,
     String title = 'Untitled collage',
   }) {
-    return CreatedCollage(
+    final imageUrls = _items.isEmpty
+        ? const [
+            'https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=900&q=85',
+          ]
+        : _items.map((item) => item.imageUrl).toList();
+    return CreatedCollageModel(
       id: 'collage-${DateTime.now().microsecondsSinceEpoch}',
       title: title,
       description: '',
-      imageUrls: _items.isEmpty
-          ? const [
-              'https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=900&q=85',
-            ]
-          : _items.map((item) => item.imageUrl).toList(),
+      imageUrls: imageUrls,
+      previewImageUrl: imageUrls.first,
       createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
       isDraft: isDraft,
     );
   }

@@ -1,3 +1,5 @@
+import '../../../../core/firebase/firestore_utils.dart';
+
 class PinModel {
   const PinModel({
     required this.id,
@@ -24,6 +26,67 @@ class PinModel {
   final String category;
   final bool isAiModified;
   final double heightRatio;
+
+  factory PinModel.fromMap(Map<String, dynamic> map, {String? id}) {
+    return PinModel(
+      id: id ?? map['pinId'] as String? ?? map['id'] as String? ?? '',
+      title: map['title'] as String? ?? '',
+      imageUrl: map['imageUrl'] as String? ?? '',
+      author: map['author'] as String? ?? '',
+      description: map['description'] as String? ?? '',
+      likes: map['likes'] as int? ?? 0,
+      comments: map['comments'] as int? ?? 0,
+      category: map['category'] as String? ?? '',
+      isAiModified: map['isAiModified'] as bool? ?? false,
+      heightRatio: (map['heightRatio'] as num?)?.toDouble() ?? 1.22,
+      avatarUrl: map['avatarUrl'] as String?,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'pinId': id,
+      'title': title,
+      'imageUrl': imageUrl,
+      'author': author,
+      'description': description,
+      'likes': likes,
+      'comments': comments,
+      'category': category,
+      'isAiModified': isAiModified,
+      'heightRatio': heightRatio,
+      'avatarUrl': avatarUrl,
+      'savedAt': timestampFromDate(DateTime.now()),
+    };
+  }
+
+  PinModel copyWith({
+    String? id,
+    String? title,
+    String? imageUrl,
+    String? author,
+    String? description,
+    String? avatarUrl,
+    int? likes,
+    int? comments,
+    String? category,
+    bool? isAiModified,
+    double? heightRatio,
+  }) {
+    return PinModel(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      imageUrl: imageUrl ?? this.imageUrl,
+      author: author ?? this.author,
+      description: description ?? this.description,
+      likes: likes ?? this.likes,
+      comments: comments ?? this.comments,
+      category: category ?? this.category,
+      isAiModified: isAiModified ?? this.isAiModified,
+      heightRatio: heightRatio ?? this.heightRatio,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
+    );
+  }
 }
 
 class CommentModel {
@@ -84,24 +147,6 @@ class CollageItem {
       rotation: rotation ?? this.rotation,
     );
   }
-}
-
-class CreatedCollage {
-  const CreatedCollage({
-    required this.id,
-    required this.title,
-    required this.description,
-    required this.imageUrls,
-    required this.createdAt,
-    this.isDraft = false,
-  });
-
-  final String id;
-  final String title;
-  final String description;
-  final List<String> imageUrls;
-  final DateTime createdAt;
-  final bool isDraft;
 }
 
 class FeaturedBoard {

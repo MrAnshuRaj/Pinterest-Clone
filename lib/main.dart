@@ -7,12 +7,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app/router/app_router.dart';
 import 'core/config/clerk_config.dart';
+import 'features/auth/application/auth_providers.dart';
+import 'firebase_options.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   if (Platform.isAndroid || Platform.isIOS) {
-    await Firebase.initializeApp();
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
   }
 
   if (!isClerkConfigured) {
@@ -37,59 +41,64 @@ class PinterestCloneApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = isClerkConfigured ? ClerkAuth.of(context) : null;
+    if (isClerkConfigured && authState != null && authState.isNotAvailable) {
+      return const _AppBootLoader();
+    }
+
     final router = ref.watch(appRouterProvider(authState));
     final baseTheme = ThemeData.dark(useMaterial3: true);
 
-    final app = MaterialApp.router(
-      title: 'Pinterest Clone',
-      debugShowCheckedModeBanner: false,
-      theme: baseTheme.copyWith(
-        scaffoldBackgroundColor: Colors.black,
-        colorScheme: const ColorScheme.dark(
-          primary: Color(0xFFE60023),
-          surface: Colors.black,
-        ),
-        textTheme: baseTheme.textTheme.apply(
-          bodyColor: Colors.white,
-          displayColor: Colors.white,
-        ),
-        splashFactory: InkRipple.splashFactory,
-        inputDecorationTheme: InputDecorationTheme(
-          filled: true,
-          fillColor: Colors.transparent,
-          hintStyle: const TextStyle(
-            color: Color(0xFF8C8C8C),
-            fontSize: 18,
-            fontWeight: FontWeight.w500,
+    return ProviderScope(
+      overrides: [clerkAuthStateProvider.overrideWithValue(authState)],
+      child: MaterialApp.router(
+        title: 'Pinterest Clone',
+        debugShowCheckedModeBanner: false,
+        theme: baseTheme.copyWith(
+          scaffoldBackgroundColor: Colors.black,
+          colorScheme: const ColorScheme.dark(
+            primary: Color(0xFFE60023),
+            surface: Colors.black,
           ),
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 20,
-            vertical: 18,
+          textTheme: baseTheme.textTheme.apply(
+            bodyColor: Colors.white,
+            displayColor: Colors.white,
           ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(18),
-            borderSide: const BorderSide(color: Color(0xFF454545)),
+          splashFactory: InkRipple.splashFactory,
+          inputDecorationTheme: InputDecorationTheme(
+            filled: true,
+            fillColor: Colors.transparent,
+            hintStyle: const TextStyle(
+              color: Color(0xFF8C8C8C),
+              fontSize: 18,
+              fontWeight: FontWeight.w500,
+            ),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 20,
+              vertical: 18,
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(18),
+              borderSide: const BorderSide(color: Color(0xFF454545)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(18),
+              borderSide: const BorderSide(color: Colors.white),
+            ),
           ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(18),
-            borderSide: const BorderSide(color: Colors.white),
+          bottomSheetTheme: const BottomSheetThemeData(
+            backgroundColor: Color(0xFF161616),
           ),
         ),
-        bottomSheetTheme: const BottomSheetThemeData(
-          backgroundColor: Color(0xFF161616),
-        ),
+        builder: (context, child) {
+          if (child == null) {
+            return const SizedBox.shrink();
+          }
+
+          return isClerkConfigured ? ClerkErrorListener(child: child) : child;
+        },
+        routerConfig: router,
       ),
-      builder: (context, child) {
-        if (child == null) {
-          return const SizedBox.shrink();
-        }
-
-        return isClerkConfigured ? ClerkErrorListener(child: child) : child;
-      },
-      routerConfig: router,
     );
-
-    return app;
   }
 }
 

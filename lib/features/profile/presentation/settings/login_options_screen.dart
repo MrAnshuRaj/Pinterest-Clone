@@ -10,7 +10,7 @@ class LoginOptionsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(pinterestSettingsProvider);
-    final controller = ref.read(pinterestSettingsProvider.notifier);
+    final controller = ref.read(settingsControllerProvider);
     return Scaffold(
       backgroundColor: Colors.black,
       body: SafeArea(

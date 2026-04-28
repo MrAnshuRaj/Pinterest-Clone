@@ -17,6 +17,8 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   late final TextEditingController _name;
   late final TextEditingController _username;
   late final TextEditingController _website;
+  late final TextEditingController _bio;
+  late final TextEditingController _pronouns;
   late UserProfileModel _initial;
   bool _showAllPins = true;
 
@@ -27,10 +29,14 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     _name = TextEditingController(text: _initial.name);
     _username = TextEditingController(text: _initial.username);
     _website = TextEditingController(text: _initial.website);
+    _bio = TextEditingController(text: _initial.bio);
+    _pronouns = TextEditingController(text: _initial.pronouns);
     _showAllPins = _initial.showAllPins;
     _name.addListener(_changed);
     _username.addListener(_changed);
     _website.addListener(_changed);
+    _bio.addListener(_changed);
+    _pronouns.addListener(_changed);
   }
 
   @override
@@ -38,6 +44,8 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     _name.dispose();
     _username.dispose();
     _website.dispose();
+    _bio.dispose();
+    _pronouns.dispose();
     super.dispose();
   }
 
@@ -47,10 +55,23 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       _name.text != _initial.name ||
       _username.text != _initial.username ||
       _website.text != _initial.website ||
+      _bio.text != _initial.bio ||
+      _pronouns.text != _initial.pronouns ||
       _showAllPins != _initial.showAllPins;
 
   @override
   Widget build(BuildContext context) {
+    final profileAsync = ref.watch(userProfileProvider);
+    if (profileAsync.isLoading && _initial.name.isEmpty) {
+      return const Scaffold(
+        backgroundColor: Colors.black,
+        body: PinterestStatusView(
+          message: 'Loading your profile...',
+          showSpinner: true,
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: Colors.black,
       body: SafeArea(
@@ -123,8 +144,8 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                     ),
                   ),
                   SettingsRow(
-                    title: 'Tell your story',
-                    onTap: () => _showTextSheet('About'),
+                    title: _bio.text.isEmpty ? 'Tell your story' : _bio.text,
+                    onTap: () => _showTextSheet('About', _bio),
                   ),
                   const SizedBox(height: 18),
                   _EditField(
@@ -142,8 +163,10 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                     ),
                   ),
                   SettingsRow(
-                    title: 'Share how you like to be referred to',
-                    onTap: () => _showTextSheet('Pronouns'),
+                    title: _pronouns.text.isEmpty
+                        ? 'Share how you like to be referred to'
+                        : _pronouns.text,
+                    onTap: () => _showTextSheet('Pronouns', _pronouns),
                   ),
                   const SizedBox(height: 22),
                   Row(
@@ -191,23 +214,84 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     );
   }
 
-  void _showTextSheet(String title) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$title can be edited in the next version')),
+  Future<void> _showTextSheet(
+    String title,
+    TextEditingController controller,
+  ) async {
+    final sheetController = TextEditingController(text: controller.text);
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF161616),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: EdgeInsets.fromLTRB(
+            22,
+            18,
+            22,
+            18 + MediaQuery.viewInsetsOf(context).bottom,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: sheetController,
+                autofocus: true,
+                maxLines: title == 'About' ? 4 : 1,
+                style: const TextStyle(color: Colors.white, fontSize: 18),
+                decoration: InputDecoration(
+                  hintText: title == 'About' ? 'Tell your story' : 'Pronouns',
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: FilledButton(
+                  onPressed: () =>
+                      Navigator.of(context).pop(sheetController.text.trim()),
+                  style: pinterestButtonStyle(color: pinterestRed),
+                  child: const Text('Save'),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
+
+    sheetController.dispose();
+    if (result == null) return;
+    controller.text = result;
   }
 
-  void _save() {
-    ref
-        .read(profileProvider.notifier)
+  Future<void> _save() async {
+    await ref
+        .read(profileControllerProvider)
         .update(
           _initial.copyWith(
             name: _name.text.trim(),
             username: _username.text.trim().replaceAll('@', ''),
             website: _website.text.trim(),
+            bio: _bio.text.trim(),
+            pronouns: _pronouns.text.trim(),
             showAllPins: _showAllPins,
+            updatedAt: DateTime.now(),
           ),
         );
+    if (!mounted) return;
     context.pop();
   }
 }

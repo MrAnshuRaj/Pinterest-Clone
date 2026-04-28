@@ -11,7 +11,7 @@ class PrivacyDataScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(pinterestSettingsProvider);
-    final controller = ref.read(pinterestSettingsProvider.notifier);
+    final controller = ref.read(settingsControllerProvider);
     return Scaffold(
       backgroundColor: Colors.black,
       body: SafeArea(
@@ -23,7 +23,11 @@ class PrivacyDataScreen extends ConsumerWidget {
             const SizedBox(height: 28),
             const Text(
               'Manage the data Pinterest shares with advertisers and uses to improve the ads and recommendations we show you. Learn more',
-              style: TextStyle(color: pinterestTextGrey, fontSize: 20, height: 1.2),
+              style: TextStyle(
+                color: pinterestTextGrey,
+                fontSize: 20,
+                height: 1.2,
+              ),
             ),
             const SizedBox(height: 28),
             const Text(

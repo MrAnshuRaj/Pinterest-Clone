@@ -33,13 +33,21 @@ class DeleteAccountScreen extends ConsumerWidget {
               const Text(
                 'Deleting your account is permanent and means you won’t be able to get your Pins or boards back. All your Pinterest account data will be deleted.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white, fontSize: 20, height: 1.25),
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  height: 1.25,
+                ),
               ),
               const SizedBox(height: 30),
               Text(
                 '${profile.name.split(' ').first}, if you’re ready to leave forever, we’ll send you an email with the final step to:',
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.white, fontSize: 20, height: 1.25),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  height: 1.25,
+                ),
               ),
               const SizedBox(height: 24),
               Text(

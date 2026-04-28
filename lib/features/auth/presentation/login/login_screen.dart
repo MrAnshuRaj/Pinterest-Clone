@@ -7,6 +7,9 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/config/clerk_config.dart';
 import '../../application/auth_providers.dart';
 import '../../data/services/clerk_auth_service.dart';
+import '../../../inbox/application/inbox_providers.dart';
+import '../../../profile/application/profile_providers.dart';
+import '../../../profile/application/settings_providers.dart';
 import '../signup/signup_state.dart';
 
 final loginLoadingProvider = StateProvider.autoDispose<bool>((ref) => false);
@@ -76,6 +79,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       final authState = ClerkAuth.of(context, listen: false);
       final service = ref.read(clerkAuthServiceProvider(authState));
       await action(service);
+      final user = authState.user;
+      if (user != null) {
+        await ref
+            .read(userProfileRepositoryProvider)
+            .getOrCreateProfileFromClerk(user: user);
+        await ref
+            .read(appSettingsRepositoryProvider)
+            .ensureDefaultSettings(user.id);
+        await ref
+            .read(inboxRepositoryProvider)
+            .seedDefaultUpdatesIfEmpty(user.id);
+      }
       if (!mounted) return;
       context.go('/main');
     } catch (error) {

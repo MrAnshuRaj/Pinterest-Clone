@@ -3,8 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../shared/widgets/pinterest_cached_image.dart';
+import '../../../auth/application/auth_providers.dart';
+import '../../data/models/created_pin_model.dart';
 import '../../../home/data/models/pin_model.dart';
-import '../../../home/data/repositories/pin_repository.dart';
+import '../../../profile/application/profile_providers.dart';
+import '../../../saved/application/saved_providers.dart';
 
 class CreatePinScreen extends ConsumerStatefulWidget {
   const CreatePinScreen({super.key});
@@ -17,10 +20,12 @@ class _CreatePinScreenState extends ConsumerState<CreatePinScreen> {
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _linkController = TextEditingController();
-  String _board = 'Profile';
+  String? _boardId;
+  String _boardLabel = 'Profile';
   String _imageUrl =
       'https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=800&q=85';
   List<String> _topics = const [];
+  bool _isSubmitting = false;
 
   static const _mockImages = [
     'https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=800&q=85',
@@ -43,28 +48,79 @@ class _CreatePinScreenState extends ConsumerState<CreatePinScreen> {
     super.dispose();
   }
 
-  bool get _canCreate => _titleController.text.trim().isNotEmpty;
+  bool get _canCreate =>
+      _titleController.text.trim().isNotEmpty && !_isSubmitting;
 
-  void _createPin() {
+  Future<void> _createPin() async {
     if (!_canCreate) return;
-    final pin = PinModel(
-      id: 'created-${DateTime.now().microsecondsSinceEpoch}',
+
+    final userId = ref.read(currentUserIdProvider);
+    if (userId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('You need to be signed in before creating a Pin.'),
+        ),
+      );
+      return;
+    }
+
+    FocusScope.of(context).unfocus();
+    setState(() => _isSubmitting = true);
+
+    final profile = ref.read(profileProvider);
+    final pinId = 'created-${DateTime.now().microsecondsSinceEpoch}';
+    final createdPin = CreatedPinModel(
+      id: pinId,
       title: _titleController.text.trim(),
-      imageUrl: _imageUrl,
-      author: 'Profile',
       description: _descriptionController.text.trim(),
+      link: _linkController.text.trim(),
+      imageUrl: _imageUrl,
+      boardId: _boardId,
+      topics: _topics,
+      altText: '',
+      allowComments: true,
+      showSimilarProducts: true,
+      createdAt: DateTime.now(),
+    );
+    final pin = PinModel(
+      id: pinId,
+      title: createdPin.title,
+      imageUrl: _imageUrl,
+      author: profile.name.isEmpty ? 'Profile' : profile.name,
+      description: createdPin.description,
       likes: 0,
       comments: 0,
       category: _topics.isEmpty ? 'created' : _topics.first.toLowerCase(),
       isAiModified: false,
       heightRatio: 1.22,
     );
-    ref.read(createdPinsProvider.notifier).add(pin);
-    ref.read(savedPinsProvider.notifier).toggle(pin.id);
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Pin created')));
-    context.go('/saved');
+
+    try {
+      final controller = ref.read(savedContentControllerProvider);
+      await controller.createPin(createdPin);
+      await controller.savePin(pin);
+      if (_boardId != null) {
+        await controller.addPinsToBoard(_boardId!, [pin]);
+      }
+
+      ref.read(savedTabProvider.notifier).state = 0;
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Pin created')));
+      context.go('/saved');
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not create Pin right now. Please try again.'),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
+    }
   }
 
   Future<void> _openTopics() async {
@@ -175,12 +231,14 @@ class _CreatePinScreenState extends ConsumerState<CreatePinScreen> {
                   const Divider(color: Color(0xFF262626), height: 30),
                   _CreateRow(
                     label: 'Pick a board',
-                    value: _board,
+                    value: _boardLabel,
                     onTap: _pickBoard,
                   ),
                   _CreateRow(
                     label: 'Tag related topics',
-                    value: _topics.isEmpty ? null : '${_topics.length}',
+                    value: _topics.isEmpty
+                        ? null
+                        : _topics.take(2).join(', '),
                     onTap: _openTopics,
                   ),
                   _CreateRow(
@@ -225,10 +283,22 @@ class _CreatePinScreenState extends ConsumerState<CreatePinScreen> {
                     borderRadius: BorderRadius.circular(16),
                   ),
                 ),
-                child: const Text(
-                  'Create',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
-                ),
+                child: _isSubmitting
+                    ? const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.3,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Text(
+                        'Create',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
               ),
             ],
           ),
@@ -245,6 +315,7 @@ class _CreatePinScreenState extends ConsumerState<CreatePinScreen> {
   }
 
   void _pickBoard() {
+    final boards = ref.read(boardsListProvider);
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
@@ -257,24 +328,43 @@ class _CreatePinScreenState extends ConsumerState<CreatePinScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              for (final board in const [
-                'Profile',
-                'Favorites',
-                'Created by you',
-              ])
+              if (boards.isEmpty)
                 ListTile(
                   onTap: () {
-                    setState(() => _board = board);
+                    setState(() {
+                      _boardId = null;
+                      _boardLabel = 'Profile';
+                    });
+                    Navigator.of(context).pop();
+                  },
+                  title: const Text(
+                    'Profile',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  trailing: _boardId == null
+                      ? const Icon(Icons.check_rounded, color: Colors.white)
+                      : null,
+                ),
+              for (final board in boards)
+                ListTile(
+                  onTap: () {
+                    setState(() {
+                      _boardId = board.id;
+                      _boardLabel = board.name;
+                    });
                     Navigator.of(context).pop();
                   },
                   title: Text(
-                    board,
+                    board.name,
                     style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
-                  trailing: _board == board
+                  trailing: _boardId == board.id
                       ? const Icon(Icons.check_rounded, color: Colors.white)
                       : null,
                 ),

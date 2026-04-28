@@ -35,7 +35,7 @@ class SecurityLoginsScreen extends ConsumerWidget {
                   'This makes your account extra secure. Along with your password, you’ll need to enter the secret code that we text your phone each time you log in. Learn more',
               value: settings.twoFactorEnabled,
               onChanged: ref
-                  .read(pinterestSettingsProvider.notifier)
+                  .read(settingsControllerProvider)
                   .setTwoFactorEnabled,
             ),
             const SizedBox(height: 26),

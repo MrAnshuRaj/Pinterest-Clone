@@ -26,7 +26,11 @@ class _ReportsViolationsScreenState extends State<ReportsViolationsScreen> {
             const SizedBox(height: 28),
             const Text(
               'Find information related to boards, comments, Pins, or profiles that violate our Community Guidelines or local law. If you believe we’ve mistakenly taken action, you can submit an appeal within 6 months of our action. Learn more',
-              style: TextStyle(color: pinterestTextGrey, fontSize: 19, height: 1.18),
+              style: TextStyle(
+                color: pinterestTextGrey,
+                fontSize: 19,
+                height: 1.18,
+              ),
             ),
             const SizedBox(height: 36),
             Row(

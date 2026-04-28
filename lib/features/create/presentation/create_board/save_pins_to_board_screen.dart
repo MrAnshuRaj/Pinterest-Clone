@@ -24,11 +24,7 @@ class _SavePinsToBoardScreenState extends ConsumerState<SavePinsToBoardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final pins = ref
-        .watch(pinRepositoryProvider)
-        .getMockPinsSync()
-        .where((pin) => pin.category == 'travel')
-        .toList();
+    final pins = ref.watch(pinRepositoryProvider).getMockPinsSync();
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -94,14 +90,17 @@ class _SavePinsToBoardScreenState extends ConsumerState<SavePinsToBoardScreen> {
     );
   }
 
-  void _save(List<PinModel> pins) {
+  Future<void> _save(List<PinModel> pins) async {
     final selectedPins = pins
         .where((pin) => _selected.contains(pin.id))
         .toList(growable: false);
-    ref
-        .read(boardsProvider.notifier)
-        .addPins(boardId: widget.boardId, pins: selectedPins);
+    final controller = ref.read(savedContentControllerProvider);
+    await controller.addPinsToBoard(widget.boardId, selectedPins);
+    for (final pin in selectedPins) {
+      await controller.savePin(pin);
+    }
     ref.read(savedTabProvider.notifier).state = 1;
+    if (!mounted) return;
     context.go('/saved');
   }
 }
@@ -159,9 +158,7 @@ class _SelectablePinCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    pin.title.contains('Travel')
-                        ? 'Hand Luggage Only'
-                        : pin.title,
+                    pin.title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(

@@ -8,6 +8,7 @@ import '../../features/auth/presentation/signup/signup_flow_screen.dart';
 import '../../features/create/presentation/collage/collage_editor_screen.dart';
 import '../../features/create/presentation/collage/collage_photo_picker_screen.dart';
 import '../../features/create/presentation/collage/collage_publish_screen.dart';
+import '../../features/create/data/models/created_collage_model.dart';
 import '../../features/create/presentation/create_board/create_board_screen.dart';
 import '../../features/create/presentation/create_board/save_pins_to_board_screen.dart';
 import '../../features/create/presentation/create_pin/advanced_settings_screen.dart';
@@ -49,9 +50,14 @@ final appRouterProvider = Provider.family<GoRouter, ClerkAuthState?>((
   authState,
 ) {
   final router = GoRouter(
+    initialLocation: authState?.isSignedIn == true ? '/main' : '/',
     refreshListenable: authState,
     redirect: (context, state) {
       if (authState == null) {
+        return null;
+      }
+
+      if (authState.isNotAvailable) {
         return null;
       }
 
@@ -177,16 +183,20 @@ final appRouterProvider = Provider.family<GoRouter, ClerkAuthState?>((
       GoRoute(
         path: '/create/collage/publish',
         builder: (context, state) {
-          final collage = state.extra is CreatedCollage
-              ? state.extra as CreatedCollage
-              : CreatedCollage(
+          final collage = state.extra is CreatedCollageModel
+              ? state.extra as CreatedCollageModel
+              : CreatedCollageModel(
                   id: 'empty',
                   title: '',
                   description: '',
                   imageUrls: const [
                     'https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=900&q=85',
                   ],
+                  previewImageUrl:
+                      'https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=900&q=85',
+                  isDraft: false,
                   createdAt: DateTime.now(),
+                  updatedAt: DateTime.now(),
                 );
           return CollagePublishScreen(collage: collage);
         },

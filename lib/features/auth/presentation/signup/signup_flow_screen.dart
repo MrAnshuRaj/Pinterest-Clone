@@ -6,6 +6,9 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/config/clerk_config.dart';
 import '../../application/auth_providers.dart';
 import '../../data/services/clerk_auth_service.dart';
+import '../../../inbox/application/inbox_providers.dart';
+import '../../../profile/application/profile_providers.dart';
+import '../../../profile/application/settings_providers.dart';
 import 'signup_controller.dart';
 import 'signup_state.dart';
 import 'widgets/birthday_picker.dart';
@@ -383,8 +386,30 @@ class _SignupFlowScreenState extends ConsumerState<SignupFlowScreen> {
       final authState = ClerkAuth.of(context, listen: false);
       final service = ref.read(clerkAuthServiceProvider(authState));
       final controller = ref.read(_provider.notifier);
+      final signupState = ref.read(_provider);
       await controller.createClerkAccount(service);
       await controller.syncOnboardingProfileToClerk(service);
+      final user = authState.user;
+      if (user != null) {
+        await ref
+            .read(userProfileRepositoryProvider)
+            .getOrCreateProfileFromClerk(
+              user: user,
+              birthday: signupState.birthday,
+              gender: signupState.gender,
+              country: signupState.country,
+              selectedInterests: signupState.selectedInterests,
+            );
+        await ref
+            .read(appSettingsRepositoryProvider)
+            .ensureDefaultSettings(user.id);
+        await ref.read(appSettingsRepositoryProvider).updateSettings(user.id, {
+          'selectedInterests': signupState.selectedInterests.toList(),
+        });
+        await ref
+            .read(inboxRepositoryProvider)
+            .seedDefaultUpdatesIfEmpty(user.id);
+      }
     } on ClerkEmailVerificationRequired {
       if (!mounted) return;
       setState(() {
@@ -430,6 +455,28 @@ class _SignupFlowScreenState extends ConsumerState<SignupFlowScreen> {
       final service = ref.read(clerkAuthServiceProvider(authState));
       await service.verifyEmailCode(code: _verificationController.text);
       await ref.read(_provider.notifier).syncOnboardingProfileToClerk(service);
+      final user = authState.user;
+      final state = ref.read(_provider);
+      if (user != null) {
+        await ref
+            .read(userProfileRepositoryProvider)
+            .getOrCreateProfileFromClerk(
+              user: user,
+              birthday: state.birthday,
+              gender: state.gender,
+              country: state.country,
+              selectedInterests: state.selectedInterests,
+            );
+        await ref
+            .read(appSettingsRepositoryProvider)
+            .ensureDefaultSettings(user.id);
+        await ref.read(appSettingsRepositoryProvider).updateSettings(user.id, {
+          'selectedInterests': state.selectedInterests.toList(),
+        });
+        await ref
+            .read(inboxRepositoryProvider)
+            .seedDefaultUpdatesIfEmpty(user.id);
+      }
       if (!mounted) return;
       completeSignup();
     } catch (error) {

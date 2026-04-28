@@ -1,46 +1,86 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../auth/application/auth_providers.dart';
 import '../data/models/user_profile_model.dart';
+import '../data/repositories/user_profile_repository.dart';
 
-final profileProvider =
-    StateNotifierProvider<ProfileController, UserProfileModel>(
-      (ref) => ProfileController(),
-    );
+final userProfileRepositoryProvider = Provider<UserProfileRepository>((ref) {
+  return UserProfileRepository();
+});
 
-final profileControllerProvider =
-    StateNotifierProvider<ProfileController, UserProfileModel>(
-      (ref) => ProfileController(),
-    );
+final userProfileProvider = StreamProvider<UserProfileModel?>(
+  (ref) {
+    final user = ref.watch(currentClerkUserProvider);
+    if (user == null) {
+      return Stream.value(null);
+    }
 
-class ProfileController extends StateNotifier<UserProfileModel> {
-  ProfileController()
-    : super(
-        UserProfileModel(
-          name: 'Anshu Raj',
-          username: 'anshu5265',
-          email: 'anshurajwork@gmail.com',
-          avatarInitial: 'A',
-          bio: '',
-          website: '',
-          pronouns: '',
-          birthday: DateTime(2004, 3, 7),
-          gender: 'Male',
-          country: 'India',
-          language: 'English (India)',
-          showAllPins: true,
-          isBusinessAccount: false,
-          appSounds: true,
-        ),
-      );
+    final repository = ref.watch(userProfileRepositoryProvider);
+    unawaited(repository.getOrCreateProfileFromClerk(user: user));
+    return repository.watchProfile(user.id);
+  },
+  dependencies: [clerkAuthStateProvider, currentClerkUserProvider],
+);
 
-  void update(UserProfileModel profile) {
-    state = profile;
+final resolvedUserProfileProvider = Provider<UserProfileModel>(
+  (ref) {
+    return ref.watch(userProfileProvider).valueOrNull ?? UserProfileModel.empty();
+  },
+  dependencies: [userProfileProvider],
+);
+
+final profileProvider = resolvedUserProfileProvider;
+
+final profileControllerProvider = Provider<ProfileController>((ref) {
+  return ProfileController(ref);
+});
+
+class ProfileController {
+  ProfileController(this._ref);
+
+  final Ref _ref;
+
+  String? get _userId => _ref.read(currentUserIdProvider);
+
+  UserProfileModel get _current => _ref.read(resolvedUserProfileProvider);
+
+  Future<void> update(UserProfileModel profile) async {
+    final userId = _userId;
+    if (userId == null) return;
+    await _ref
+        .read(userProfileRepositoryProvider)
+        .updateProfile(userId, profile);
   }
 
-  void setBirthday(DateTime value) => state = state.copyWith(birthday: value);
-  void setGender(String value) => state = state.copyWith(gender: value);
-  void setCountry(String value) => state = state.copyWith(country: value);
-  void setLanguage(String value) => state = state.copyWith(language: value);
-  void setAppSounds(bool value) => state = state.copyWith(appSounds: value);
-  void convertToBusiness() => state = state.copyWith(isBusinessAccount: true);
+  Future<void> updateFields(Map<String, dynamic> data) async {
+    final userId = _userId;
+    if (userId == null) return;
+    await _ref.read(userProfileRepositoryProvider).updateField(userId, data);
+  }
+
+  Future<void> setBirthday(DateTime value) {
+    return update(_current.copyWith(birthday: value));
+  }
+
+  Future<void> setGender(String value) {
+    return update(_current.copyWith(gender: value));
+  }
+
+  Future<void> setCountry(String value) {
+    return update(_current.copyWith(country: value));
+  }
+
+  Future<void> setLanguage(String value) {
+    return update(_current.copyWith(language: value));
+  }
+
+  Future<void> setShowAllPins(bool value) {
+    return update(_current.copyWith(showAllPins: value));
+  }
+
+  Future<void> convertToBusiness() {
+    return update(_current.copyWith(isBusinessAccount: true));
+  }
 }

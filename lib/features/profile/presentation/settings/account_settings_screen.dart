@@ -14,7 +14,17 @@ class AccountSettingsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final profileAsync = ref.watch(userProfileProvider);
     final profile = ref.watch(profileProvider);
+    if (profileAsync.isLoading && profile.name.isEmpty) {
+      return const Scaffold(
+        backgroundColor: Colors.black,
+        body: PinterestStatusView(
+          message: 'Loading your account...',
+          showSpinner: true,
+        ),
+      );
+    }
     return Scaffold(
       backgroundColor: Colors.black,
       body: SafeArea(

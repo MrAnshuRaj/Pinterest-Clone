@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../shared/widgets/pinterest_cached_image.dart';
 import '../../home/data/models/pin_model.dart';
 import '../../home/data/repositories/pin_repository.dart';
+import '../../saved/application/saved_providers.dart';
 import '../../home/presentation/widgets/pin_card.dart';
 import 'widgets/comments_bottom_sheet.dart';
 import 'widgets/more_to_explore_grid.dart';
@@ -114,7 +115,7 @@ class _PinDetailScreenState extends ConsumerState<PinDetailScreen> {
   }
 
   Widget _buildDetail(BuildContext context, PinModel pin) {
-    final saved = ref.watch(savedPinsProvider).contains(pin.id);
+    final saved = ref.watch(savedPinIdsProvider).contains(pin.id);
     final imageRatio = 1 / math.min(pin.heightRatio, 1.78);
 
     return Scaffold(
@@ -202,8 +203,9 @@ class _PinDetailScreenState extends ConsumerState<PinDetailScreen> {
                 onComment: () => _showComments(pin),
                 onShare: () => _showShare(pin),
                 onMore: () => PinCard.showPinMenu(context),
-                onSave: () =>
-                    ref.read(savedPinsProvider.notifier).toggle(pin.id),
+                onSave: () => ref
+                    .read(savedContentControllerProvider)
+                    .toggleSavedPin(pin),
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(22, 10, 22, 0),

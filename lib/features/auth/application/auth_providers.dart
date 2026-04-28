@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/services/clerk_auth_service.dart';
 
+final clerkAuthStateProvider = Provider<ClerkAuthState?>((ref) => null);
+
 final clerkAuthServiceProvider =
     Provider.family<ClerkAuthService, ClerkAuthState>((ref, authState) {
       return ClerkAuthService(authState);
@@ -23,6 +25,27 @@ final currentUserProvider = Provider.family<clerk.User?, ClerkAuthState>((
 ) {
   return authState.user;
 });
+
+final currentClerkUserProvider = Provider<clerk.User?>(
+  (ref) {
+    return ref.watch(clerkAuthStateProvider)?.user;
+  },
+  dependencies: [clerkAuthStateProvider],
+);
+
+final currentUserIdProvider = Provider<String?>(
+  (ref) {
+    return ref.watch(currentClerkUserProvider)?.id;
+  },
+  dependencies: [currentClerkUserProvider],
+);
+
+final currentUserEmailProvider = Provider<String?>(
+  (ref) {
+    return ref.watch(currentClerkUserProvider)?.email;
+  },
+  dependencies: [currentClerkUserProvider],
+);
 
 final authActionProvider =
     StateNotifierProvider.autoDispose<AuthActionController, AuthActionState>((

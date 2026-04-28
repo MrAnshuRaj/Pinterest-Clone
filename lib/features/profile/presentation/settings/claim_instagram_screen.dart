@@ -30,7 +30,11 @@ class ClaimInstagramScreen extends StatelessWidget {
               const Text(
                 'Connect your account to auto-create your Instagram posts as Pins. Learn more',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white, fontSize: 20, height: 1.25),
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  height: 1.25,
+                ),
               ),
               const SizedBox(height: 62),
               FilledButton(

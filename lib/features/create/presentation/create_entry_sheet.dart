@@ -15,6 +15,8 @@ class CreateEntrySheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final router = GoRouter.of(context);
+
     return Container(
       padding: const EdgeInsets.fromLTRB(22, 16, 22, 34),
       decoration: const BoxDecoration(
@@ -60,7 +62,7 @@ class CreateEntrySheet extends StatelessWidget {
                   label: 'Pin',
                   onTap: () {
                     Navigator.of(context).pop();
-                    context.push('/create/pin');
+                    router.push('/create/pin');
                   },
                 ),
                 const SizedBox(width: 22),
@@ -69,7 +71,7 @@ class CreateEntrySheet extends StatelessWidget {
                   label: 'Collage',
                   onTap: () {
                     Navigator.of(context).pop();
-                    context.push('/create/collage');
+                    router.push('/create/collage');
                   },
                 ),
                 const SizedBox(width: 22),
@@ -78,7 +80,7 @@ class CreateEntrySheet extends StatelessWidget {
                   label: 'Board',
                   onTap: () {
                     Navigator.of(context).pop();
-                    context.push('/create/board');
+                    router.push('/create/board');
                   },
                 ),
               ],

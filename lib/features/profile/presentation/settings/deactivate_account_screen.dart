@@ -1,12 +1,16 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../auth/application/auth_providers.dart';
 import 'package:flutter/material.dart';
 
 import 'settings_widgets.dart';
 
-class DeactivateAccountScreen extends StatelessWidget {
+class DeactivateAccountScreen extends ConsumerWidget {
   const DeactivateAccountScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final email = ref.watch(currentUserEmailProvider) ?? 'your account email';
     return Scaffold(
       backgroundColor: Colors.black,
       body: SafeArea(
@@ -38,10 +42,10 @@ class DeactivateAccountScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 30),
-              const Text(
-                'You can reactivate your account anytime. If you want to use Pinterest again, just log in with anshurajwork@gmail.com',
+              Text(
+                'You can reactivate your account anytime. If you want to use Pinterest again, just log in with $email',
                 textAlign: TextAlign.center,
-                style: TextStyle(
+                style: const TextStyle(
                   color: Colors.white,
                   fontSize: 20,
                   height: 1.25,

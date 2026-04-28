@@ -95,7 +95,7 @@ class _BirthdateSettingsScreenState
                   onPressed: _changed
                       ? () {
                           ref
-                              .read(profileProvider.notifier)
+                              .read(profileControllerProvider)
                               .setBirthday(_selected);
                           context.pop();
                         }

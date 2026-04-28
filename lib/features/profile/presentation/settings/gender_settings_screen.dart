@@ -22,7 +22,7 @@ class GenderSettingsScreen extends ConsumerWidget {
             for (final option in const ['Female', 'Male', 'Custom'])
               InkWell(
                 onTap: () =>
-                    ref.read(profileProvider.notifier).setGender(option),
+                    ref.read(profileControllerProvider).setGender(option),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 11),
                   child: Row(

@@ -148,9 +148,10 @@ class _HideablePin extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final hidden = ref.watch(pinterestSettingsProvider).hiddenPinIds.contains(
-          pin.id,
-        );
+    final hidden = ref
+        .watch(pinterestSettingsProvider)
+        .hiddenPinIds
+        .contains(pin.id);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -171,7 +172,7 @@ class _HideablePin extends ConsumerWidget {
               bottom: 8,
               child: InkWell(
                 onTap: () => ref
-                    .read(pinterestSettingsProvider.notifier)
+                    .read(settingsControllerProvider)
                     .toggleHiddenPin(pin.id),
                 child: Container(
                   padding: const EdgeInsets.all(8),
@@ -193,12 +194,16 @@ class _HideablePin extends ConsumerWidget {
         ),
         const SizedBox(height: 6),
         if (index < 4)
-          const Text(
-            'Travel',
-            style: TextStyle(color: Colors.white, fontSize: 15),
+          Text(
+            pin.category.isEmpty ? 'Saved idea' : pin.category,
+            style: const TextStyle(color: Colors.white, fontSize: 15),
           ),
         Text(
-          index < 4 ? '2m ago' : index < 6 ? '2h ago' : '2d ago',
+          index < 4
+              ? '2m ago'
+              : index < 6
+              ? '2h ago'
+              : '2d ago',
           style: const TextStyle(color: Colors.white, fontSize: 15),
         ),
       ],
@@ -212,7 +217,7 @@ class _AiContentTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(pinterestSettingsProvider);
-    final controller = ref.read(pinterestSettingsProvider.notifier);
+    final controller = ref.read(settingsControllerProvider);
     return ListView(
       padding: const EdgeInsets.fromLTRB(12, 4, 12, 28),
       children: [
@@ -227,7 +232,7 @@ class _AiContentTab extends ConsumerWidget {
         for (final item in aiCategories)
           SettingsSwitchRow(
             title: item,
-            value: settings.aiToggles[item] ?? true,
+            value: settings.aiContentToggles[item] ?? true,
             onChanged: (value) => controller.toggleAi(item, value),
           ),
       ],
@@ -239,18 +244,54 @@ class _InterestsTab extends ConsumerWidget {
   const _InterestsTab();
 
   static const _interests = [
-    ('Food and Drinks', 'https://images.unsplash.com/photo-1497534446932-c925b458314e?auto=format&fit=crop&w=500&q=85'),
-    ('Home Decor', 'https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?auto=format&fit=crop&w=500&q=85'),
-    ('Quotes', 'https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=500&q=85'),
-    ('Wallpapers', 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=500&q=85'),
-    ('Anime', 'https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=500&q=85'),
-    ('Ganesha', 'https://images.unsplash.com/photo-1599983915785-338a5a0271d7?auto=format&fit=crop&w=500&q=85'),
-    ('Cars', 'https://images.unsplash.com/photo-1494905998402-395d579af36f?auto=format&fit=crop&w=500&q=85'),
-    ('Nature Photography', 'https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=500&q=85'),
-    ('Luxury Cars', 'https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=500&q=85'),
-    ('Soccer', 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&w=500&q=85'),
-    ('Comics Art', 'https://images.unsplash.com/photo-1601645191163-3fc0d5d64e35?auto=format&fit=crop&w=500&q=85'),
-    ('Landscape Photography', 'https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=500&q=85'),
+    (
+      'Food and Drinks',
+      'https://images.unsplash.com/photo-1497534446932-c925b458314e?auto=format&fit=crop&w=500&q=85',
+    ),
+    (
+      'Home Decor',
+      'https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?auto=format&fit=crop&w=500&q=85',
+    ),
+    (
+      'Quotes',
+      'https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=500&q=85',
+    ),
+    (
+      'Wallpapers',
+      'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=500&q=85',
+    ),
+    (
+      'Anime',
+      'https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=500&q=85',
+    ),
+    (
+      'Ganesha',
+      'https://images.unsplash.com/photo-1599983915785-338a5a0271d7?auto=format&fit=crop&w=500&q=85',
+    ),
+    (
+      'Cars',
+      'https://images.unsplash.com/photo-1494905998402-395d579af36f?auto=format&fit=crop&w=500&q=85',
+    ),
+    (
+      'Nature Photography',
+      'https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=500&q=85',
+    ),
+    (
+      'Luxury Cars',
+      'https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=500&q=85',
+    ),
+    (
+      'Soccer',
+      'https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&w=500&q=85',
+    ),
+    (
+      'Comics Art',
+      'https://images.unsplash.com/photo-1601645191163-3fc0d5d64e35?auto=format&fit=crop&w=500&q=85',
+    ),
+    (
+      'Landscape Photography',
+      'https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=500&q=85',
+    ),
   ];
 
   @override
@@ -274,9 +315,8 @@ class _InterestsTab extends ConsumerWidget {
         final item = _interests[index - 1];
         final isSelected = selected.contains(item.$1);
         return InkWell(
-          onTap: () => ref
-              .read(pinterestSettingsProvider.notifier)
-              .toggleInterest(item.$1),
+          onTap: () =>
+              ref.read(settingsControllerProvider).toggleInterest(item.$1),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -348,9 +388,9 @@ class _BoardsRefineTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final boards = ref.watch(boardsProvider);
+    final boards = ref.watch(boardsListProvider);
     final settings = ref.watch(pinterestSettingsProvider);
-    final controller = ref.read(pinterestSettingsProvider.notifier);
+    final controller = ref.read(settingsControllerProvider);
     return ListView(
       padding: const EdgeInsets.fromLTRB(12, 4, 12, 28),
       children: [
@@ -400,8 +440,7 @@ class _BoardsRefineTab extends ConsumerWidget {
                   ),
                 ),
                 Switch(
-                  value:
-                      settings.boardRecommendationToggles[board.id] ?? true,
+                  value: settings.boardRecommendationToggles[board.id] ?? true,
                   activeThumbColor: Colors.white,
                   activeTrackColor: const Color(0xFF6265F6),
                   inactiveThumbColor: Colors.white,

@@ -3,9 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../shared/widgets/pinterest_cached_image.dart';
+import '../../create/data/models/created_collage_model.dart';
 import '../../create/presentation/create_entry_sheet.dart';
 import '../../home/data/models/pin_model.dart';
-import '../../home/data/repositories/pin_repository.dart';
 import '../../profile/application/profile_providers.dart';
 import '../../profile/presentation/settings/settings_widgets.dart';
 import '../application/saved_providers.dart';
@@ -17,10 +17,21 @@ class SavedScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final tab = ref.watch(savedTabProvider);
+    final profileAsync = ref.watch(userProfileProvider);
     final profile = ref.watch(profileProvider);
-    final pins = ref.watch(pinRepositoryProvider).getMockPinsSync();
-    final boards = ref.watch(boardsProvider);
-    final collages = ref.watch(createdCollagesProvider);
+    final pins = ref.watch(savedPinsListProvider);
+    final boards = ref.watch(boardsListProvider);
+    final collages = ref.watch(collagesListProvider);
+
+    if (profileAsync.isLoading && profile.name.isEmpty) {
+      return const Scaffold(
+        backgroundColor: Colors.black,
+        body: PinterestStatusView(
+          message: 'Loading your saved ideas...',
+          showSpinner: true,
+        ),
+      );
+    }
 
     return SafeArea(
       bottom: false,
@@ -224,6 +235,14 @@ class _PinsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (pins.isEmpty) {
+      return const Center(
+        child: Text(
+          'No saved Pins yet',
+          style: TextStyle(color: Colors.white, fontSize: 18),
+        ),
+      );
+    }
     final preview = pins.take(4).toList();
     return ListView(
       children: [
@@ -246,6 +265,14 @@ class _BoardsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (boards.isEmpty) {
+      return const Center(
+        child: Text(
+          'No boards yet',
+          style: TextStyle(color: Colors.white, fontSize: 18),
+        ),
+      );
+    }
     return ListView(
       children: [
         Wrap(
@@ -308,33 +335,18 @@ class _BoardsTab extends StatelessWidget {
 class _CollagesTab extends StatelessWidget {
   const _CollagesTab({required this.collages});
 
-  final List<CreatedCollage> collages;
+  final List<CreatedCollageModel> collages;
 
   @override
   Widget build(BuildContext context) {
-    final items = collages.isEmpty
-        ? [
-            CreatedCollage(
-              id: 'draft-boy',
-              title: 'Boy',
-              description: '',
-              imageUrls: const [
-                'https://images.unsplash.com/photo-1513364776144-60967b0f800f?auto=format&fit=crop&w=500&q=85',
-              ],
-              createdAt: DateTime(2026, 4, 26),
-              isDraft: true,
-            ),
-            CreatedCollage(
-              id: 'draft-camp',
-              title: 'My collage',
-              description: '',
-              imageUrls: const [
-                'https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=500&q=85',
-              ],
-              createdAt: DateTime(2026, 4, 26),
-            ),
-          ]
-        : collages;
+    if (collages.isEmpty) {
+      return const Center(
+        child: Text(
+          'No collages yet',
+          style: TextStyle(color: Colors.white, fontSize: 18),
+        ),
+      );
+    }
 
     return GridView.builder(
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -343,9 +355,9 @@ class _CollagesTab extends StatelessWidget {
         mainAxisSpacing: 12,
         childAspectRatio: 0.58,
       ),
-      itemCount: items.length,
+      itemCount: collages.length,
       itemBuilder: (context, index) {
-        final collage = items[index];
+        final collage = collages[index];
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -385,7 +397,9 @@ class _CollagesTab extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    collage.title.isEmpty ? 'Apr 26' : collage.title,
+                    collage.title.isEmpty
+                        ? formatRelativeDate(collage.createdAt)
+                        : collage.title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(

@@ -67,8 +67,9 @@ class ConvertBusinessAccountScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 34),
               FilledButton(
-                onPressed: () {
-                  ref.read(profileProvider.notifier).convertToBusiness();
+                onPressed: () async {
+                  await ref.read(profileControllerProvider).convertToBusiness();
+                  if (!context.mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text('Converted to business account'),

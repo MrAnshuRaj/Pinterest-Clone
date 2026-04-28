@@ -10,7 +10,7 @@ class SocialPermissionsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(pinterestSettingsProvider);
-    final controller = ref.read(pinterestSettingsProvider.notifier);
+    final controller = ref.read(settingsControllerProvider);
     return Scaffold(
       backgroundColor: Colors.black,
       body: SafeArea(
@@ -22,7 +22,11 @@ class SocialPermissionsScreen extends ConsumerWidget {
             const SizedBox(height: 28),
             const Text(
               'Choose how others can interact with you on Pinterest, and find Pins you’ve interacted with in the past',
-              style: TextStyle(color: pinterestTextGrey, fontSize: 20, height: 1.2),
+              style: TextStyle(
+                color: pinterestTextGrey,
+                fontSize: 20,
+                height: 1.2,
+              ),
             ),
             const SizedBox(height: 28),
             const _Section('Messages'),
@@ -84,7 +88,11 @@ class SocialPermissionsScreen extends ConsumerWidget {
             ),
             const Text(
               'Shopping recommendations aren’t available for Pins with tagged products or paid partnership label.',
-              style: TextStyle(color: pinterestTextGrey, fontSize: 16, height: 1.2),
+              style: TextStyle(
+                color: pinterestTextGrey,
+                fontSize: 16,
+                height: 1.2,
+              ),
             ),
           ],
         ),

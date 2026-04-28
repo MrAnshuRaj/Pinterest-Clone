@@ -1,30 +1,25 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-class SearchTypingScreen extends StatefulWidget {
+import '../application/search_providers.dart';
+
+class SearchTypingScreen extends ConsumerStatefulWidget {
   const SearchTypingScreen({super.key, this.initialQuery});
 
   final String? initialQuery;
 
   @override
-  State<SearchTypingScreen> createState() => _SearchTypingScreenState();
+  ConsumerState<SearchTypingScreen> createState() => _SearchTypingScreenState();
 }
 
-class _SearchTypingScreenState extends State<SearchTypingScreen> {
+class _SearchTypingScreenState extends ConsumerState<SearchTypingScreen> {
   late final TextEditingController _controller;
-
-  static const _recentSearches = [
-    'tattoo ideas',
-    'home decor',
-    'wallpapers',
-    'outfits',
-    'recipes',
-  ];
 
   @override
   void initState() {
     super.initState();
-    _controller = TextEditingController(text: widget.initialQuery ?? 'travel');
+    _controller = TextEditingController(text: widget.initialQuery ?? '');
     _controller.addListener(() => setState(() {}));
   }
 
@@ -34,44 +29,17 @@ class _SearchTypingScreenState extends State<SearchTypingScreen> {
     super.dispose();
   }
 
-  List<String> get _suggestions {
-    final query = _controller.text.trim().toLowerCase();
-    if (query.isEmpty) return _recentSearches;
-
-    if (query.startsWith('travel')) {
-      return const [
-        'travel',
-        'travel aesthetic',
-        'traveling aesthetic',
-        'travel inspiration',
-        'travel list',
-        'travel pictures',
-        'travel video',
-        'travel checklist',
-        'travel vision board',
-      ];
-    }
-
-    return [
-      query,
-      '$query aesthetic',
-      '$query ideas',
-      '$query inspiration',
-      '$query wallpaper',
-      '$query outfit',
-      '$query checklist',
-    ];
-  }
-
   void _submit(String value) {
     final query = value.trim();
     if (query.isEmpty) return;
+    ref.read(searchHistoryProvider.notifier).record(query);
     context.go('/search/results/${Uri.encodeComponent(query)}');
   }
 
   @override
   Widget build(BuildContext context) {
     final query = _controller.text.trim();
+    final suggestions = ref.watch(searchSuggestionsProvider(query));
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -147,9 +115,26 @@ class _SearchTypingScreenState extends State<SearchTypingScreen> {
                 keyboardDismissBehavior:
                     ScrollViewKeyboardDismissBehavior.onDrag,
                 padding: const EdgeInsets.only(top: 8),
-                itemCount: _suggestions.length,
+                itemCount: suggestions.length + 1,
                 itemBuilder: (context, index) {
-                  final suggestion = _suggestions[index];
+                  if (index == 0) {
+                    final label = query.isEmpty
+                        ? 'Recommended for you'
+                        : 'Suggestions';
+                    return Padding(
+                      padding: const EdgeInsets.fromLTRB(26, 6, 26, 8),
+                      child: Text(
+                        label,
+                        style: const TextStyle(
+                          color: Color(0xFF8F8F8F),
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    );
+                  }
+
+                  final suggestion = suggestions[index - 1];
                   return ListTile(
                     onTap: () => _submit(suggestion),
                     contentPadding: const EdgeInsets.symmetric(horizontal: 26),

@@ -79,7 +79,7 @@ class _CountryRegionScreenState extends ConsumerState<CountryRegionScreen> {
                       return InkWell(
                         onTap: () {
                           ref
-                              .read(profileProvider.notifier)
+                              .read(profileControllerProvider)
                               .setCountry(country.split(' (').first);
                           context.pop();
                         },

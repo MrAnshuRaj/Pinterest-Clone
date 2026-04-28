@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -5,10 +7,6 @@ import '../models/pin_model.dart';
 
 final pinRepositoryProvider = Provider<PinRepository>((ref) {
   return PinRepository(Dio());
-});
-
-final homePinsProvider = FutureProvider<List<PinModel>>((ref) {
-  return ref.watch(pinRepositoryProvider).getHomePins();
 });
 
 final searchResultsProvider = FutureProvider.family<List<PinModel>, String>((
@@ -33,52 +31,7 @@ final featuredBoardsProvider = FutureProvider<List<FeaturedBoard>>((ref) {
   return ref.watch(pinRepositoryProvider).getFeaturedBoards();
 });
 
-final savedPinsProvider = StateNotifierProvider<SavedPinsNotifier, Set<String>>(
-  (ref) => SavedPinsNotifier(),
-);
-
-final createdPinsProvider =
-    StateNotifierProvider<CreatedPinsNotifier, List<PinModel>>(
-      (ref) => CreatedPinsNotifier(),
-    );
-
-final createdCollagesProvider =
-    StateNotifierProvider<CollageListNotifier, List<CreatedCollage>>(
-      (ref) => CollageListNotifier(),
-    );
-
-final draftCollagesProvider =
-    StateNotifierProvider<CollageListNotifier, List<CreatedCollage>>(
-      (ref) => CollageListNotifier(),
-    );
-
 final searchFilterProvider = StateProvider<String>((ref) => 'All Pins');
-
-class SavedPinsNotifier extends StateNotifier<Set<String>> {
-  SavedPinsNotifier() : super(<String>{});
-
-  void toggle(String id) {
-    final next = {...state};
-    next.contains(id) ? next.remove(id) : next.add(id);
-    state = next;
-  }
-}
-
-class CreatedPinsNotifier extends StateNotifier<List<PinModel>> {
-  CreatedPinsNotifier() : super(const []);
-
-  void add(PinModel pin) {
-    state = [pin, ...state];
-  }
-}
-
-class CollageListNotifier extends StateNotifier<List<CreatedCollage>> {
-  CollageListNotifier() : super(const []);
-
-  void add(CreatedCollage collage) {
-    state = [collage, ...state];
-  }
-}
 
 class PopularSection {
   const PopularSection({
@@ -96,10 +49,28 @@ class PinRepository {
   PinRepository(this.dio);
 
   final Dio dio;
+  static const int homeFeedPageSize = 36;
+  static const int homeFeedSoftLimit = 3600;
 
   Future<List<PinModel>> getHomePins() async {
-    await Future<void>.delayed(const Duration(milliseconds: 280));
-    return _pins;
+    return getHomeFeedPage(page: 0, limit: homeFeedPageSize * 3);
+  }
+
+  Future<List<PinModel>> getHomeFeedPage({
+    required int page,
+    int limit = homeFeedPageSize,
+  }) async {
+    final start = page * limit;
+    if (start >= homeFeedSoftLimit) return const [];
+
+    await Future<void>.delayed(
+      Duration(milliseconds: page == 0 ? 280 : 180),
+    );
+
+    final end = math.min(start + limit, homeFeedSoftLimit);
+    return List.generate(end - start, (index) {
+      return _buildHomeFeedPin(start + index);
+    });
   }
 
   List<PinModel> getMockPinsSync() => _pins;
@@ -147,8 +118,8 @@ class PinRepository {
   }
 
   Future<PinModel?> getPinById(String id) async {
-    final pins = await getHomePins();
-    for (final pin in pins) {
+    for (var index = 0; index < homeFeedSoftLimit; index++) {
+      final pin = _buildHomeFeedPin(index);
       if (pin.id == id) return pin;
     }
     return null;
@@ -192,7 +163,70 @@ class PinRepository {
       showTranslation: true,
     ),
   ];
+
+  PinModel _buildHomeFeedPin(int index) {
+    final cycle = index ~/ _pins.length;
+    final baseIndex = ((index * 5) + (cycle * 3)) % _pins.length;
+    final base = _pins[baseIndex];
+    final mood = _feedMoodLabels[(index + cycle) % _feedMoodLabels.length];
+    final width = _feedWidths[(index + cycle) % _feedWidths.length];
+    final height = _feedHeights[(index + (cycle * 2)) % _feedHeights.length];
+    final heightOffset =
+        _feedHeightOffsets[(index + cycle) % _feedHeightOffsets.length];
+    final adjustedRatio = math.max(
+      1.02,
+      math.min(1.92, base.heightRatio + heightOffset),
+    );
+
+    if (cycle == 0) {
+      return base.copyWith(
+        imageUrl: _withImageSize(base.imageUrl, width: width, height: height),
+        heightRatio: adjustedRatio,
+      );
+    }
+
+    return base.copyWith(
+      id: '${base.id}-feed-$cycle',
+      title: '${base.title} · $mood',
+      imageUrl: _withImageSize(base.imageUrl, width: width, height: height),
+      author: '${base.author} Daily',
+      description: '${base.description} Curated for $mood ideas.',
+      likes: base.likes + (cycle * 9) + (index % 13),
+      comments: base.comments + ((index + cycle) % 5),
+      heightRatio: adjustedRatio,
+    );
+  }
+
+  String _withImageSize(
+    String url, {
+    required int width,
+    required int height,
+  }) {
+    final uri = Uri.parse(url);
+    final query = Map<String, String>.from(uri.queryParameters);
+    query['w'] = '$width';
+    query['h'] = '$height';
+    query['fit'] = 'crop';
+    return uri.replace(queryParameters: query).toString();
+  }
 }
+
+const _feedMoodLabels = [
+  'fresh saves',
+  'weekend mood',
+  'daily inspiration',
+  'for later',
+  'idea dump',
+  'visual notes',
+  'mood board',
+  'next trip',
+  'style file',
+  'camera roll',
+];
+
+const _feedWidths = [760, 780, 820, 860, 900, 940];
+const _feedHeights = [1120, 1180, 1240, 1300, 1360, 1420];
+const _feedHeightOffsets = [-0.09, -0.04, 0.03, 0.08, 0.12, -0.06];
 
 const _pins = [
   PinModel(
@@ -440,8 +474,8 @@ const _boards = [
     pinsCount: 75,
     ageLabel: '2mo',
     imageUrls: [
-      'https://images.unsplash.com/photo-1518199266791-5375a83190b7?auto=format&fit=crop&w=600&q=85',
-      'https://images.unsplash.com/photo-1513364776144-60967b0f800f?auto=format&fit=crop&w=600&q=85',
+      'https://images.unsplash.com/photo-1518199266791-5375a83190b7?auto=format&fit=crop&w=700&h=1100&q=85',
+      'https://images.unsplash.com/photo-1513364776144-60967b0f800f?auto=format&fit=crop&w=700&h=1100&q=85',
     ],
   ),
   FeaturedBoard(
@@ -451,8 +485,8 @@ const _boards = [
     pinsCount: 78,
     ageLabel: '8mo',
     imageUrls: [
-      'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=600&q=85',
-      'https://images.unsplash.com/photo-1490750967868-88aa4486c946?auto=format&fit=crop&w=600&q=85',
+      'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=700&h=1100&q=85',
+      'https://images.unsplash.com/photo-1490750967868-88aa4486c946?auto=format&fit=crop&w=700&h=1100&q=85',
     ],
   ),
   FeaturedBoard(
@@ -462,8 +496,8 @@ const _boards = [
     pinsCount: 94,
     ageLabel: '1mo',
     imageUrls: [
-      'https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?auto=format&fit=crop&w=600&q=85',
-      'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=600&q=85',
+      'https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?auto=format&fit=crop&w=700&h=1100&q=85',
+      'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=700&h=1100&q=85',
     ],
   ),
 ];
@@ -473,50 +507,50 @@ const _popularSections = [
     title: 'Tattoo ideas',
     query: 'tattoo ideas',
     images: [
-      'https://images.unsplash.com/photo-1542727365-19732a80dcfd?auto=format&fit=crop&w=500&q=85',
-      'https://images.unsplash.com/photo-1590246814883-2ea990fca608?auto=format&fit=crop&w=500&q=85',
-      'https://images.unsplash.com/photo-1598371839696-5c5bb00bdc28?auto=format&fit=crop&w=500&q=85',
-      'https://images.unsplash.com/photo-1611501275019-9b5cda994e8d?auto=format&fit=crop&w=500&q=85',
+      'https://images.unsplash.com/photo-1542727365-19732a80dcfd?auto=format&fit=crop&w=700&h=1200&q=85',
+      'https://images.unsplash.com/photo-1590246814883-2ea990fca608?auto=format&fit=crop&w=700&q=85',
+      'https://images.unsplash.com/photo-1542727365-19732a80dcfd?auto=format&fit=crop&w=650&h=1180&q=85',
+      'https://images.unsplash.com/photo-1590246814883-2ea990fca608?auto=format&fit=crop&w=650&q=85',
     ],
   ),
   PopularSection(
     title: 'My photo gallery',
     query: 'my photo gallery',
     images: [
-      'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=500&q=85',
-      'https://images.unsplash.com/photo-1519608487953-e999c86e7455?auto=format&fit=crop&w=500&q=85',
-      'https://images.unsplash.com/photo-1541961017774-22349e4a1262?auto=format&fit=crop&w=500&q=85',
-      'https://images.unsplash.com/photo-1490750967868-88aa4486c946?auto=format&fit=crop&w=500&q=85',
+      'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=700&h=1200&q=85',
+      'https://images.unsplash.com/photo-1519608487953-e999c86e7455?auto=format&fit=crop&w=700&h=1200&q=85',
+      'https://images.unsplash.com/photo-1541961017774-22349e4a1262?auto=format&fit=crop&w=700&h=1200&q=85',
+      'https://images.unsplash.com/photo-1490750967868-88aa4486c946?auto=format&fit=crop&w=700&h=1200&q=85',
     ],
   ),
   PopularSection(
     title: 'Wallpaper aesthetic',
     query: 'wallpaper aesthetic',
     images: [
-      'https://images.unsplash.com/photo-1519608487953-e999c86e7455?auto=format&fit=crop&w=500&q=85',
-      'https://images.unsplash.com/photo-1490750967868-88aa4486c946?auto=format&fit=crop&w=500&q=85',
-      'https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=500&q=85',
-      'https://images.unsplash.com/photo-1497250681960-ef046c08a56e?auto=format&fit=crop&w=500&q=85',
+      'https://images.unsplash.com/photo-1519608487953-e999c86e7455?auto=format&fit=crop&w=700&h=1200&q=85',
+      'https://images.unsplash.com/photo-1490750967868-88aa4486c946?auto=format&fit=crop&w=700&h=1200&q=85',
+      'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=700&h=1200&q=85',
+      'https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?auto=format&fit=crop&w=700&h=1200&q=85',
     ],
   ),
   PopularSection(
     title: 'Easy drawings',
     query: 'easy drawings',
     images: [
-      'https://images.unsplash.com/photo-1513364776144-60967b0f800f?auto=format&fit=crop&w=500&q=85',
-      'https://images.unsplash.com/photo-1452860606245-08befc0ff44b?auto=format&fit=crop&w=500&q=85',
-      'https://images.unsplash.com/photo-1541961017774-22349e4a1262?auto=format&fit=crop&w=500&q=85',
-      'https://images.unsplash.com/photo-1455390582262-044cdead277a?auto=format&fit=crop&w=500&q=85',
+      'https://images.unsplash.com/photo-1513364776144-60967b0f800f?auto=format&fit=crop&w=700&h=1200&q=85',
+      'https://images.unsplash.com/photo-1541961017774-22349e4a1262?auto=format&fit=crop&w=700&h=1200&q=85',
+      'https://images.unsplash.com/photo-1513364776144-60967b0f800f?auto=format&fit=crop&w=650&h=1180&q=85',
+      'https://images.unsplash.com/photo-1455390582262-044cdead277a?auto=format&fit=crop&w=700&h=1200&q=85',
     ],
   ),
   PopularSection(
     title: 'Car videos',
     query: 'car videos',
     images: [
-      'https://images.unsplash.com/photo-1494905998402-395d579af36f?auto=format&fit=crop&w=500&q=85',
-      'https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=500&q=85',
-      'https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?auto=format&fit=crop&w=500&q=85',
-      'https://images.unsplash.com/photo-1552519507-da3b142c6e3d?auto=format&fit=crop&w=500&q=85',
+      'https://images.unsplash.com/photo-1494905998402-395d579af36f?auto=format&fit=crop&w=700&h=1200&q=85',
+      'https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=700&h=1200&q=85',
+      'https://images.unsplash.com/photo-1552519507-da3b142c6e3d?auto=format&fit=crop&w=700&h=1200&q=85',
+      'https://images.unsplash.com/photo-1494905998402-395d579af36f?auto=format&fit=crop&w=650&h=1180&q=85',
     ],
   ),
 ];

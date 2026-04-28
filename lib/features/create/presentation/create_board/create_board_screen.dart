@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../features/profile/presentation/settings/settings_widgets.dart';
 import '../../../../features/saved/application/saved_providers.dart';
+import '../../../../features/saved/data/models/board_model.dart';
 
 class CreateBoardScreen extends ConsumerStatefulWidget {
   const CreateBoardScreen({super.key});
@@ -15,6 +16,7 @@ class CreateBoardScreen extends ConsumerStatefulWidget {
 class _CreateBoardScreenState extends ConsumerState<CreateBoardScreen> {
   final _nameController = TextEditingController();
   bool _isSecret = false;
+  bool _isSubmitting = false;
 
   @override
   void dispose() {
@@ -24,7 +26,7 @@ class _CreateBoardScreenState extends ConsumerState<CreateBoardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final canCreate = _nameController.text.trim().isNotEmpty;
+    final canCreate = _nameController.text.trim().isNotEmpty && !_isSubmitting;
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -123,7 +125,16 @@ class _CreateBoardScreenState extends ConsumerState<CreateBoardScreen> {
                   style: pinterestButtonStyle(
                     color: canCreate ? pinterestRed : pinterestGrey,
                   ),
-                  child: const Text('Create Board'),
+                  child: _isSubmitting
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.3,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text('Create Board'),
                 ),
               ),
             ),
@@ -133,11 +144,53 @@ class _CreateBoardScreenState extends ConsumerState<CreateBoardScreen> {
     );
   }
 
-  void _createBoard() {
-    final board = ref
-        .read(boardsProvider.notifier)
-        .create(name: _nameController.text, isSecret: _isSecret);
-    context.go('/create/board/${board.id}/save-pins');
+  Future<void> _createBoard() async {
+    if (_isSubmitting) return;
+
+    FocusScope.of(context).unfocus();
+    setState(() => _isSubmitting = true);
+
+    final now = DateTime.now();
+    try {
+      final boardId = await ref
+          .read(savedContentControllerProvider)
+          .createBoard(
+            BoardModel(
+              id: '',
+              name: _nameController.text.trim(),
+              coverImageUrls: const [],
+              pinIds: const [],
+              isSecret: _isSecret,
+              isGroupBoard: false,
+              createdAt: now,
+              updatedAt: now,
+            ),
+          );
+
+      if (!mounted) return;
+
+      if (boardId == null || boardId.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('You need to be signed in before creating a board.'),
+          ),
+        );
+        return;
+      }
+
+      context.go('/create/board/$boardId/save-pins');
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not create board right now. Please try again.'),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
+    }
   }
 }
 

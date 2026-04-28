@@ -76,8 +76,9 @@ class AddAccountScreen extends StatelessWidget {
                           ),
                         const SizedBox(height: 18),
                         FilledButton(
-                          onPressed: () =>
-                              context.push('/profile/settings/convert-business'),
+                          onPressed: () => context.push(
+                            '/profile/settings/convert-business',
+                          ),
                           style: pinterestButtonStyle(color: pinterestRed),
                           child: const Text('Create'),
                         ),
@@ -176,7 +177,11 @@ class _AddAccountOption extends StatelessWidget {
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right_rounded, color: Colors.white, size: 34),
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: Colors.white,
+              size: 34,
+            ),
           ],
         ),
       ),

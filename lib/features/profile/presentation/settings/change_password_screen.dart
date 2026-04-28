@@ -46,12 +46,12 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                 trailing: FilledButton(
                   onPressed: _valid
                       ? () => ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Password change is not connected in this demo',
-                              ),
+                          const SnackBar(
+                            content: Text(
+                              'Password change is not connected in this demo',
                             ),
-                          )
+                          ),
+                        )
                       : null,
                   style: pinterestButtonStyle(color: pinterestRed),
                   child: const Text('Done'),
@@ -69,7 +69,9 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                 child: TextButton(
                   onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text('Password reset is not connected in this demo'),
+                      content: Text(
+                        'Password reset is not connected in this demo',
+                      ),
                     ),
                   ),
                   child: const Text(
