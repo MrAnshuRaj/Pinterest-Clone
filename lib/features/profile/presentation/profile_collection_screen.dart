@@ -19,10 +19,36 @@ class _ProfileCollectionScreenState
 
   @override
   Widget build(BuildContext context) {
+    final createdPinsAsync = ref.watch(createdPinsProvider);
+    final savedPinsAsync = ref.watch(savedPinsProvider);
+    final boardsAsync = ref.watch(boardsProvider);
+    final collagesAsync = ref.watch(collagesProvider);
     final createdPins = ref.watch(createdPinsListProvider);
     final savedPins = ref.watch(savedPinsListProvider);
     final boards = ref.watch(boardsListProvider);
     final collages = ref.watch(collagesListProvider);
+    final publishedCollages = collages
+        .where((collage) => !collage.isDraft)
+        .toList(growable: false);
+    final isLoading =
+        createdPinsAsync.isLoading ||
+        savedPinsAsync.isLoading ||
+        boardsAsync.isLoading ||
+        collagesAsync.isLoading;
+
+    if (isLoading &&
+        createdPins.isEmpty &&
+        savedPins.isEmpty &&
+        boards.isEmpty &&
+        collages.isEmpty) {
+      return const Scaffold(
+        backgroundColor: Colors.black,
+        body: PinterestStatusView(
+          message: 'Loading your profile...',
+          showSpinner: true,
+        ),
+      );
+    }
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -50,8 +76,15 @@ class _ProfileCollectionScreenState
             Expanded(
               child: _tab == 0
                   ? _PinsGrid(
-                      urls: createdPins.map((pin) => pin.imageUrl).toList(),
-                      emptyMessage: 'No created Pins yet',
+                      urls: [
+                        ...createdPins.map((pin) => pin.imageUrl),
+                        ...publishedCollages.map(
+                          (collage) => collage.previewImageUrl.isEmpty
+                              ? collage.imageUrls.first
+                              : collage.previewImageUrl,
+                        ),
+                      ],
+                      emptyMessage: 'No created content yet',
                     )
                   : ListView(
                       padding: const EdgeInsets.symmetric(horizontal: 12),

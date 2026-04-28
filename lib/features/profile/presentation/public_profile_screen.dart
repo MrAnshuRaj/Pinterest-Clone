@@ -26,13 +26,30 @@ class _PublicProfileScreenState extends ConsumerState<PublicProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final profileAsync = ref.watch(userProfileProvider);
+    final savedPinsAsync = ref.watch(savedPinsProvider);
+    final createdPinsAsync = ref.watch(createdPinsProvider);
+    final boardsAsync = ref.watch(boardsProvider);
+    final collagesAsync = ref.watch(collagesProvider);
     final profile = ref.watch(profileProvider);
     final savedPins = ref.watch(savedPinsListProvider);
     final createdPins = ref.watch(createdPinsListProvider);
     final boards = ref.watch(boardsListProvider);
     final collages = ref.watch(collagesListProvider);
+    final publishedCollages = collages
+        .where((collage) => !collage.isDraft)
+        .toList(growable: false);
+    final isLoadingContent =
+        savedPinsAsync.isLoading ||
+        createdPinsAsync.isLoading ||
+        boardsAsync.isLoading ||
+        collagesAsync.isLoading;
 
-    if (profileAsync.isLoading && profile.name.isEmpty) {
+    if ((profileAsync.isLoading && profile.name.isEmpty) ||
+        (isLoadingContent &&
+            savedPins.isEmpty &&
+            createdPins.isEmpty &&
+            boards.isEmpty &&
+            collages.isEmpty)) {
       return const Scaffold(
         backgroundColor: Colors.black,
         body: PinterestStatusView(
@@ -165,12 +182,15 @@ class _PublicProfileScreenState extends ConsumerState<PublicProfileScreen> {
             ),
             const SizedBox(height: 36),
             if (_tab == 0)
-              _CreatedGrid(pins: createdPins, author: profile.name)
+              _CreatedGrid(
+                pins: createdPins,
+                collages: publishedCollages,
+                author: profile.name,
+              )
             else
               _SavedProfileContent(
                 pins: savedPins,
                 boards: boards,
-                collages: collages,
               ),
           ],
         ),
@@ -220,17 +240,31 @@ class _ProfileContentTab extends StatelessWidget {
 }
 
 class _CreatedGrid extends StatelessWidget {
-  const _CreatedGrid({required this.pins, required this.author});
+  const _CreatedGrid({
+    required this.pins,
+    required this.collages,
+    required this.author,
+  });
 
   final List<CreatedPinModel> pins;
+  final List<CreatedCollageModel> collages;
   final String author;
 
   @override
   Widget build(BuildContext context) {
-    if (pins.isEmpty) {
+    final items = <String>[
+      ...pins.map((pin) => pin.imageUrl),
+      ...collages.map(
+        (collage) => collage.previewImageUrl.isEmpty
+            ? collage.imageUrls.first
+            : collage.previewImageUrl,
+      ),
+    ];
+
+    if (items.isEmpty) {
       return const Center(
         child: Text(
-          'No created Pins yet',
+          'No created content yet',
           style: TextStyle(color: Colors.white, fontSize: 18),
         ),
       );
@@ -245,12 +279,11 @@ class _CreatedGrid extends StatelessWidget {
         mainAxisSpacing: 8,
         childAspectRatio: 0.58,
       ),
-      itemCount: pins.length,
+      itemCount: items.length,
       itemBuilder: (context, index) {
-        final pin = pins[index].toPinModel(author: author);
         return ClipRRect(
           borderRadius: BorderRadius.circular(14),
-          child: PinterestCachedImage(imageUrl: pin.imageUrl),
+          child: PinterestCachedImage(imageUrl: items[index]),
         );
       },
     );
@@ -258,19 +291,14 @@ class _CreatedGrid extends StatelessWidget {
 }
 
 class _SavedProfileContent extends StatelessWidget {
-  const _SavedProfileContent({
-    required this.pins,
-    required this.boards,
-    required this.collages,
-  });
+  const _SavedProfileContent({required this.pins, required this.boards});
 
   final List<PinModel> pins;
   final List<BoardModel> boards;
-  final List<CreatedCollageModel> collages;
 
   @override
   Widget build(BuildContext context) {
-    if (pins.isEmpty && boards.isEmpty && collages.isEmpty) {
+    if (pins.isEmpty && boards.isEmpty) {
       return const Center(
         child: Text(
           'No saved ideas yet',
@@ -304,39 +332,6 @@ class _SavedProfileContent extends StatelessWidget {
               ),
           ],
         ),
-        if (collages.isNotEmpty) ...[
-          const SizedBox(height: 42),
-          const Text(
-            'Collages',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 26,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 14),
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 3,
-              crossAxisSpacing: 8,
-              mainAxisSpacing: 8,
-              childAspectRatio: 0.58,
-            ),
-            itemCount: collages.length,
-            itemBuilder: (context, index) {
-              final collage = collages[index];
-              final imageUrl = collage.previewImageUrl.isEmpty
-                  ? collage.imageUrls.first
-                  : collage.previewImageUrl;
-              return ClipRRect(
-                borderRadius: BorderRadius.circular(14),
-                child: PinterestCachedImage(imageUrl: imageUrl),
-              );
-            },
-          ),
-        ],
         if (pins.isNotEmpty) ...[
           const SizedBox(height: 42),
           Row(

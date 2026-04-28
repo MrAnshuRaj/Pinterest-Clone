@@ -27,18 +27,38 @@ class UserProfileRepository {
   }) async {
     final doc = _refs.userDoc(user.id);
     final snapshot = await doc.get();
-    if (snapshot.exists && snapshot.data() != null) {
-      return UserProfileModel.fromMap(snapshot.data()!);
-    }
-
     final now = DateTime.now();
     final email = (user.email ?? '').trim();
     final name = _deriveName(user);
+    final username = _buildUsername(
+      user.username ?? email.split('@').firstOrNull ?? name,
+    );
+
+    if (snapshot.exists && snapshot.data() != null) {
+      final current = UserProfileModel.fromMap(snapshot.data()!);
+      final repaired = _repairProfile(
+        current,
+        fallbackName: name,
+        fallbackUsername: username,
+        fallbackEmail: email,
+      );
+
+      if (_needsRepair(current, repaired)) {
+        await doc.set({
+          'name': repaired.name,
+          'username': repaired.username,
+          'email': repaired.email,
+          'avatarInitial': repaired.avatarInitial,
+          'updatedAt': Timestamp.fromDate(now),
+        }, SetOptions(merge: true));
+      }
+
+      return repaired;
+    }
+
     final profile = UserProfileModel(
       name: name,
-      username: _buildUsername(
-        user.username ?? email.split('@').firstOrNull ?? name,
-      ),
+      username: username,
       email: email,
       avatarInitial: _avatarInitialFor(name, email),
       bio: '',
@@ -57,6 +77,36 @@ class UserProfileRepository {
 
     await doc.set(profile.toMap());
     return profile;
+  }
+
+  UserProfileModel _repairProfile(
+    UserProfileModel profile, {
+    required String fallbackName,
+    required String fallbackUsername,
+    required String fallbackEmail,
+  }) {
+    final nextName = profile.name.trim().isEmpty ? fallbackName : profile.name;
+    final nextUsername = profile.username.trim().isEmpty
+        ? fallbackUsername
+        : _buildUsername(profile.username);
+    final nextEmail = profile.email.trim().isEmpty ? fallbackEmail : profile.email;
+    final nextAvatarInitial = profile.avatarInitial.trim().isEmpty
+        ? _avatarInitialFor(nextName, nextEmail)
+        : profile.avatarInitial;
+
+    return profile.copyWith(
+      name: nextName,
+      username: nextUsername,
+      email: nextEmail,
+      avatarInitial: nextAvatarInitial,
+    );
+  }
+
+  bool _needsRepair(UserProfileModel current, UserProfileModel repaired) {
+    return current.name != repaired.name ||
+        current.username != repaired.username ||
+        current.email != repaired.email ||
+        current.avatarInitial != repaired.avatarInitial;
   }
 
   Future<void> updateProfile(String userId, UserProfileModel profile) {

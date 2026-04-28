@@ -37,7 +37,7 @@ class UserProfileModel {
   final DateTime createdAt;
   final DateTime updatedAt;
 
-  String get handle => '@$username';
+  String get handle => username.trim().isEmpty ? '@pinterestuser' : '@$username';
 
   factory UserProfileModel.empty() {
     final now = DateTime.now();

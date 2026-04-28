@@ -351,7 +351,7 @@ const _pins = [
     id: 'tattoo-hand',
     title: 'Hand Tattoo Reference',
     imageUrl:
-        'https://images.unsplash.com/photo-1590246814883-2ea990fca608?auto=format&fit=crop&w=900&q=85',
+        'https://images.unsplash.com/photo-1542727365-19732a80dcfd?auto=format&fit=crop&w=820&h=1280&q=85',
     author: 'Studio Flash',
     description: 'Detailed black ink design reference.',
     likes: 83,
@@ -508,9 +508,9 @@ const _popularSections = [
     query: 'tattoo ideas',
     images: [
       'https://images.unsplash.com/photo-1542727365-19732a80dcfd?auto=format&fit=crop&w=700&h=1200&q=85',
-      'https://images.unsplash.com/photo-1590246814883-2ea990fca608?auto=format&fit=crop&w=700&q=85',
+      'https://images.unsplash.com/photo-1542727365-19732a80dcfd?auto=format&fit=crop&w=720&h=1200&q=85',
       'https://images.unsplash.com/photo-1542727365-19732a80dcfd?auto=format&fit=crop&w=650&h=1180&q=85',
-      'https://images.unsplash.com/photo-1590246814883-2ea990fca608?auto=format&fit=crop&w=650&q=85',
+      'https://images.unsplash.com/photo-1542727365-19732a80dcfd?auto=format&fit=crop&w=680&h=1180&q=85',
     ],
   ),
   PopularSection(
