@@ -26,9 +26,7 @@ ClerkUserProfileSeed deriveClerkUserProfileSeed(
   String? preferredEmail,
   String? preferredUsername,
 }) {
-  final email = (preferredEmail?.trim().isNotEmpty ?? false)
-      ? preferredEmail!.trim()
-      : (user.email ?? '').trim();
+  final email = _deriveEmail(user, preferredEmail: preferredEmail);
   final name = _deriveName(user, preferredName: preferredName, email: email);
   final username = (preferredUsername?.trim().isNotEmpty ?? false)
       ? normalizeUsername(preferredUsername!, userId: user.id)
@@ -41,6 +39,21 @@ ClerkUserProfileSeed deriveClerkUserProfileSeed(
     username: username,
     avatarInitial: deriveAvatarInitial(name: name, email: email),
   );
+}
+
+String _deriveEmail(clerk.User user, {String? preferredEmail}) {
+  final preferred = preferredEmail?.trim() ?? '';
+  if (preferred.isNotEmpty) return preferred;
+
+  final primaryEmail = (user.email ?? '').trim();
+  if (primaryEmail.isNotEmpty) return primaryEmail;
+
+  final fallbackEmail = user.emailAddresses
+          ?.map((item) => item.emailAddress.trim())
+          .where((item) => item.isNotEmpty)
+          .firstOrNull ??
+      '';
+  return fallbackEmail;
 }
 
 String deriveAvatarInitial({required String name, required String email}) {

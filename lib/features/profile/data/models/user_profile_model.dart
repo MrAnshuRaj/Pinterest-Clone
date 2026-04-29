@@ -67,11 +67,11 @@ class UserProfileModel {
 
   factory UserProfileModel.fromMap(Map<String, dynamic> map) {
     final empty = UserProfileModel.empty();
-    final name = (map['name'] as String? ?? empty.name).trim();
+    final name = _cleanStoredText(map['name'] as String? ?? empty.name);
     final username = _sanitizeStoredUsername(
-      map['username'] as String? ?? empty.username,
+      _cleanStoredText(map['username'] as String? ?? empty.username),
     );
-    final email = (map['email'] as String? ?? empty.email).trim();
+    final email = _cleanStoredText(map['email'] as String? ?? empty.email);
     final avatarInitialRaw = (map['avatarInitial'] as String? ?? '').trim();
     return UserProfileModel(
       name: name,
@@ -163,11 +163,23 @@ class UserProfileModel {
 }
 
 String _sanitizeStoredUsername(String raw) {
-  return raw
+  return _cleanStoredText(raw)
       .trim()
       .toLowerCase()
       .replaceAll('@', '')
       .replaceAll(RegExp(r'[^a-z0-9._-]+'), '')
       .replaceAll(RegExp(r'[._-]{2,}'), '_')
       .replaceAll(RegExp(r'^[._-]+|[._-]+$'), '');
+}
+
+String _cleanStoredText(String raw) {
+  final cleaned = raw.trim();
+  if (cleaned.isEmpty) return '';
+
+  final normalized = cleaned.toLowerCase();
+  if (normalized == 'null' || normalized == 'undefined') {
+    return '';
+  }
+
+  return cleaned;
 }

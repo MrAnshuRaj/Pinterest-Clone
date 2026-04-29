@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:clerk_flutter/clerk_flutter.dart';
 import 'package:go_router/go_router.dart';
@@ -32,12 +33,10 @@ class _SignupFlowScreenState extends ConsumerState<SignupFlowScreen> {
   late final AutoDisposeStateNotifierProvider<SignupController, SignupState>
   _provider;
   late final TextEditingController _emailController;
-  late final TextEditingController _passwordController;
   late final TextEditingController _nameController;
   late final TextEditingController _searchController;
   late final TextEditingController _verificationController;
 
-  bool _showPassword = false;
   bool _isEditingName = true;
   bool _isCompleting = false;
   bool _needsEmailVerification = false;
@@ -235,14 +234,12 @@ class _SignupFlowScreenState extends ConsumerState<SignupFlowScreen> {
     _provider = signupControllerProvider(widget.initialEmail);
     final initialState = ref.read(_provider);
     _emailController = TextEditingController(text: initialState.email);
-    _passwordController = TextEditingController(text: initialState.password);
     _nameController = TextEditingController(text: initialState.fullName);
     _searchController = TextEditingController();
     _verificationController = TextEditingController();
     _isEditingName = initialState.fullName.trim().isEmpty;
 
     _emailController.addListener(_onEmailChanged);
-    _passwordController.addListener(_onPasswordChanged);
     _nameController.addListener(_onNameChanged);
     _searchController.addListener(_onSearchChanged);
     _verificationController.addListener(_onVerificationChanged);
@@ -251,7 +248,6 @@ class _SignupFlowScreenState extends ConsumerState<SignupFlowScreen> {
   @override
   void dispose() {
     _emailController.dispose();
-    _passwordController.dispose();
     _nameController.dispose();
     _searchController.dispose();
     _verificationController.dispose();
@@ -260,10 +256,6 @@ class _SignupFlowScreenState extends ConsumerState<SignupFlowScreen> {
 
   void _onEmailChanged() {
     ref.read(_provider.notifier).updateEmail(_emailController.text);
-  }
-
-  void _onPasswordChanged() {
-    ref.read(_provider.notifier).updatePassword(_passwordController.text);
   }
 
   void _onNameChanged() {
@@ -380,45 +372,28 @@ class _SignupFlowScreenState extends ConsumerState<SignupFlowScreen> {
       _isCompleting = true;
       _authError = null;
     });
-    ref.read(_provider.notifier).goToTuning();
 
     try {
-      debugPrint('[auth][signup] finishing signup');
+      debugPrint('[auth][signup] sending verification code');
       final authState = ClerkAuth.of(context, listen: false);
       final service = ref.read(clerkAuthServiceProvider(authState));
-      final controller = ref.read(_provider.notifier);
       final signupState = ref.read(_provider);
-      await controller.createClerkAccount(service);
-      await service.syncOnboardingProfileToClerk(
+      await service.startEmailCodeSignUp(
+        email: signupState.email,
         fullName: signupState.fullName,
-        birthday: signupState.birthday,
-        gender: signupState.gender,
-        country: signupState.country,
-        selectedInterests: signupState.selectedInterests,
       );
-      final user = authState.user;
-      if (user != null) {
-        await ref
-            .read(userProfileRepositoryProvider)
-            .getOrCreateProfileFromClerk(
-              user: user,
-              preferredName: signupState.fullName,
-              birthday: signupState.birthday,
-              gender: signupState.gender,
-              country: signupState.country,
-              selectedInterests: signupState.selectedInterests,
-            );
-        await ref
-            .read(appSettingsRepositoryProvider)
-            .ensureDefaultSettings(user.id);
-        await ref.read(appSettingsRepositoryProvider).updateSettings(user.id, {
-          'selectedInterests': signupState.selectedInterests.toList(),
-        });
-        await ref
-            .read(inboxRepositoryProvider)
-            .seedDefaultUpdatesIfEmpty(user.id);
+
+      if (authState.isSignedIn) {
+        await _completeSignedInSignup(
+          authState: authState,
+          service: service,
+          state: signupState,
+        );
+        if (!mounted) return;
+        completeSignup();
+        return;
       }
-    } on ClerkEmailVerificationRequired {
+
       if (!mounted) return;
       setState(() {
         _needsEmailVerification = true;
@@ -427,7 +402,6 @@ class _SignupFlowScreenState extends ConsumerState<SignupFlowScreen> {
       return;
     } catch (error) {
       if (!mounted) return;
-      ref.read(_provider.notifier).goBack();
       setState(() {
         _authError = friendlyClerkError(error, flow: AuthErrorFlow.signup);
         _isCompleting = false;
@@ -435,9 +409,6 @@ class _SignupFlowScreenState extends ConsumerState<SignupFlowScreen> {
       return;
     }
 
-    if (!mounted) return;
-
-    completeSignup();
   }
 
   Future<void> _verifyEmailCode() async {
@@ -462,39 +433,58 @@ class _SignupFlowScreenState extends ConsumerState<SignupFlowScreen> {
     try {
       final authState = ClerkAuth.of(context, listen: false);
       final service = ref.read(clerkAuthServiceProvider(authState));
-      await service.verifyEmailCode(code: _verificationController.text);
-      final user = authState.user;
       final state = ref.read(_provider);
-      await service.syncOnboardingProfileToClerk(
-        fullName: state.fullName,
-        birthday: state.birthday,
-        gender: state.gender,
-        country: state.country,
-        selectedInterests: state.selectedInterests,
+      await service.verifySignupEmailCode(code: _verificationController.text);
+      await _completeSignedInSignup(
+        authState: authState,
+        service: service,
+        state: state,
       );
-      if (user != null) {
-        await ref
-            .read(userProfileRepositoryProvider)
-            .getOrCreateProfileFromClerk(
-              user: user,
-              preferredName: state.fullName,
-              birthday: state.birthday,
-              gender: state.gender,
-              country: state.country,
-              selectedInterests: state.selectedInterests,
-            );
-        await ref
-            .read(appSettingsRepositoryProvider)
-            .ensureDefaultSettings(user.id);
-        await ref.read(appSettingsRepositoryProvider).updateSettings(user.id, {
-          'selectedInterests': state.selectedInterests.toList(),
-        });
-        await ref
-            .read(inboxRepositoryProvider)
-            .seedDefaultUpdatesIfEmpty(user.id);
-      }
       if (!mounted) return;
       completeSignup();
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _authError = friendlyClerkError(
+          error,
+          flow: AuthErrorFlow.emailVerification,
+        );
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isCompleting = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _resendEmailCode() async {
+    if (_isCompleting || _isVerifyingEmail) return;
+
+    FocusScope.of(context).unfocus();
+
+    if (!isClerkConfigured) {
+      setState(() {
+        _authError =
+            'Clerk is not configured. Run with --dart-define=CLERK_PUBLISHABLE_KEY=your_key_here.';
+      });
+      return;
+    }
+
+    setState(() {
+      _isCompleting = true;
+      _authError = null;
+    });
+
+    try {
+      final authState = ClerkAuth.of(context, listen: false);
+      final service = ref.read(clerkAuthServiceProvider(authState));
+      final state = ref.read(_provider);
+      await service.resendEmailCodeSignUp(
+        email: state.email,
+        fullName: state.fullName,
+      );
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -510,6 +500,43 @@ class _SignupFlowScreenState extends ConsumerState<SignupFlowScreen> {
         });
       }
     }
+  }
+
+  Future<void> _completeSignedInSignup({
+    required ClerkAuthState authState,
+    required ClerkAuthService service,
+    required SignupState state,
+  }) async {
+    await service.syncOnboardingProfileToClerk(
+      fullName: state.fullName,
+      birthday: state.birthday,
+      gender: state.gender,
+      country: state.country,
+      selectedInterests: state.selectedInterests,
+    );
+
+    final user = authState.user;
+    if (user == null) {
+      return;
+    }
+
+    await ref.read(userProfileRepositoryProvider).getOrCreateProfileFromClerk(
+      user: user,
+      preferredName: state.fullName,
+      preferredEmail: state.email.trim(),
+      preferredUsername: state.email.trim().contains('@')
+          ? state.email.trim().split('@').first.trim()
+          : null,
+      birthday: state.birthday,
+      gender: state.gender,
+      country: state.country,
+      selectedInterests: state.selectedInterests,
+    );
+    await ref.read(appSettingsRepositoryProvider).ensureDefaultSettings(user.id);
+    await ref.read(appSettingsRepositoryProvider).updateSettings(user.id, {
+      'selectedInterests': state.selectedInterests.toList(),
+    });
+    await ref.read(inboxRepositoryProvider).seedDefaultUpdatesIfEmpty(user.id);
   }
 
   void completeSignup() {
@@ -573,10 +600,6 @@ class _SignupFlowScreenState extends ConsumerState<SignupFlowScreen> {
                     key: ValueKey(state.currentStep),
                     child: switch (state.currentStep) {
                       SignupStep.email => _buildEmailStep(state, controller),
-                      SignupStep.password => _buildPasswordStep(
-                        state,
-                        controller,
-                      ),
                       SignupStep.profile => _buildProfileStep(
                         state,
                         controller,
@@ -605,9 +628,16 @@ class _SignupFlowScreenState extends ConsumerState<SignupFlowScreen> {
       child: Scaffold(
         backgroundColor: Colors.black,
         body: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+          child: SingleChildScrollView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: EdgeInsets.fromLTRB(
+              24,
+              12,
+              24,
+              24 + MediaQuery.viewInsetsOf(context).bottom,
+            ),
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 IconButton(
@@ -616,7 +646,6 @@ class _SignupFlowScreenState extends ConsumerState<SignupFlowScreen> {
                       _needsEmailVerification = false;
                       _authError = null;
                     });
-                    ref.read(_provider.notifier).goBack();
                   },
                   icon: const Icon(
                     Icons.chevron_left_rounded,
@@ -625,10 +654,10 @@ class _SignupFlowScreenState extends ConsumerState<SignupFlowScreen> {
                   ),
                 ),
                 const SizedBox(height: 30),
-                const Text('Verify your email', style: _headingStyle),
+                const Text('Enter your code', style: _headingStyle),
                 const SizedBox(height: 14),
                 Text(
-                  'Enter the 6-digit code Clerk sent to ${ref.read(_provider).email}.',
+                  'We sent a code to ${ref.read(_provider).email}',
                   style: const TextStyle(
                     color: Color(0xFFD7D7D7),
                     fontSize: 18,
@@ -638,10 +667,14 @@ class _SignupFlowScreenState extends ConsumerState<SignupFlowScreen> {
                 const SizedBox(height: 28),
                 PinterestTextField(
                   controller: _verificationController,
-                  hintText: 'Verification code',
+                  hintText: '6-digit code',
                   keyboardType: TextInputType.number,
                   textInputAction: TextInputAction.done,
                   autofocus: true,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(6),
+                  ],
                   onSubmitted: (_) => _verifyEmailCode(),
                 ),
                 if (_authError != null) ...[
@@ -655,12 +688,31 @@ class _SignupFlowScreenState extends ConsumerState<SignupFlowScreen> {
                     ),
                   ),
                 ],
-                const Spacer(),
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton(
+                    onPressed:
+                        _isCompleting || _isVerifyingEmail
+                            ? null
+                            : _resendEmailCode,
+                    child: Text(
+                      _isCompleting ? 'Sending...' : 'Resend code',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 32),
                 PinterestNextButton(
                   label: _isVerifyingEmail ? 'Please wait...' : 'Verify',
                   enabled:
                       !_isVerifyingEmail &&
-                      _verificationController.text.trim().length >= 6,
+                      !_isCompleting &&
+                      _verificationController.text.trim().length == 6,
                   onPressed: _verifyEmailCode,
                 ),
               ],
@@ -692,123 +744,6 @@ class _SignupFlowScreenState extends ConsumerState<SignupFlowScreen> {
             autofocus: true,
             autofillHints: const [AutofillHints.email],
             onSubmitted: (_) => controller.continueFromEmail(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPasswordStep(SignupState state, SignupController controller) {
-    final strength = state.passwordStrength;
-    final strengthColor = switch (strength) {
-      PasswordStrength.empty => const Color(0xFF5A5A5A),
-      PasswordStrength.weak => const Color(0xFFF57C00),
-      PasswordStrength.medium => const Color(0xFFE53935),
-      PasswordStrength.okay => const Color(0xFF2EAD55),
-    };
-    final strengthFill = switch (strength) {
-      PasswordStrength.empty => 0.0,
-      PasswordStrength.weak => 0.38,
-      PasswordStrength.medium => 0.7,
-      PasswordStrength.okay => 1.0,
-    };
-    final strengthLabel = switch (strength) {
-      PasswordStrength.empty => '',
-      PasswordStrength.weak => 'Weak',
-      PasswordStrength.medium => 'Medium',
-      PasswordStrength.okay => 'Okay',
-    };
-
-    return _StepScaffold(
-      button: PinterestNextButton(
-        label: 'Next',
-        enabled: state.hasValidPassword,
-        onPressed: controller.continueFromPassword,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const SizedBox(height: 8),
-          const Text('Create a password', style: _headingStyle),
-          const SizedBox(height: 22),
-          PinterestTextField(
-            controller: _passwordController,
-            labelText: 'Password',
-            hintText: 'Create a strong password',
-            obscureText: !_showPassword,
-            textInputAction: TextInputAction.go,
-            autofocus: true,
-            onSubmitted: (_) => controller.continueFromPassword(),
-            suffix: IconButton(
-              onPressed: () {
-                setState(() {
-                  _showPassword = !_showPassword;
-                });
-              },
-              splashRadius: 22,
-              icon: Icon(
-                _showPassword
-                    ? Icons.visibility_off_outlined
-                    : Icons.visibility_outlined,
-                color: Colors.white,
-                size: 30,
-              ),
-            ),
-          ),
-          const SizedBox(height: 18),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(999),
-            child: Container(
-              height: 10,
-              color: const Color(0xFF5A5A5A),
-              child: TweenAnimationBuilder<double>(
-                duration: const Duration(milliseconds: 220),
-                tween: Tween<double>(begin: 0, end: strengthFill),
-                builder: (context, value, child) {
-                  return FractionallySizedBox(
-                    widthFactor: value,
-                    alignment: Alignment.centerLeft,
-                    child: child,
-                  );
-                },
-                child: ColoredBox(color: strengthColor),
-              ),
-            ),
-          ),
-          const SizedBox(height: 14),
-          if (strengthLabel.isNotEmpty)
-            Text(
-              strengthLabel,
-              style: TextStyle(
-                color: strengthColor,
-                fontSize: 15,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          if (strengthLabel.isEmpty) const SizedBox(height: 6),
-          const SizedBox(height: 6),
-          const Text(
-            'Use 8 or more letters, numbers and symbols',
-            style: TextStyle(
-              color: Color(0xFF9D9D9D),
-              fontSize: 16,
-              fontWeight: FontWeight.w400,
-            ),
-          ),
-          const SizedBox(height: 34),
-          const Row(
-            children: [
-              Text(
-                'Password tips',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 17,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              SizedBox(width: 10),
-              Icon(Icons.info_outline_rounded, size: 21, color: Colors.white),
-            ],
           ),
         ],
       ),

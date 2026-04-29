@@ -1,6 +1,5 @@
 enum SignupStep {
   email,
-  password,
   profile,
   gender,
   location,
@@ -8,67 +7,60 @@ enum SignupStep {
   tuning,
 }
 
-enum PasswordStrength { empty, weak, medium, okay }
-
 class SignupState {
   const SignupState({
     required this.currentStep,
     required this.email,
-    required this.password,
     required this.fullName,
     required this.birthday,
     required this.gender,
     required this.country,
     required this.selectedInterests,
-    required this.startsFromPassword,
+    required this.startsFromProfile,
   });
 
   factory SignupState.initial({String? initialEmail}) {
     final normalizedEmail = initialEmail?.trim() ?? '';
-    final startsFromPassword = looksLikeEmail(normalizedEmail);
+    final startsFromProfile = looksLikeEmail(normalizedEmail);
 
     return SignupState(
-      currentStep: startsFromPassword ? SignupStep.password : SignupStep.email,
-      email: startsFromPassword ? normalizedEmail : '',
-      password: '',
+      currentStep: startsFromProfile ? SignupStep.profile : SignupStep.email,
+      email: startsFromProfile ? normalizedEmail : '',
       fullName: '',
       birthday: DateTime(2004, 3, 7),
       gender: '',
       country: 'India',
       selectedInterests: const {},
-      startsFromPassword: startsFromPassword,
+      startsFromProfile: startsFromProfile,
     );
   }
 
   final SignupStep currentStep;
   final String email;
-  final String password;
   final String fullName;
   final DateTime birthday;
   final String gender;
   final String country;
   final Set<String> selectedInterests;
-  final bool startsFromPassword;
+  final bool startsFromProfile;
 
   SignupStep get firstStep =>
-      startsFromPassword ? SignupStep.password : SignupStep.email;
+      startsFromProfile ? SignupStep.profile : SignupStep.email;
 
-  int get visibleStepCount => startsFromPassword ? 5 : 6;
+  int get visibleStepCount => startsFromProfile ? 4 : 5;
 
   int get progressIndex {
-    if (startsFromPassword) {
+    if (startsFromProfile) {
       switch (currentStep) {
-        case SignupStep.password:
-          return 0;
         case SignupStep.profile:
-          return 1;
+          return 0;
         case SignupStep.gender:
-          return 2;
+          return 1;
         case SignupStep.location:
-          return 3;
+          return 2;
         case SignupStep.interests:
         case SignupStep.tuning:
-          return 4;
+          return 3;
         case SignupStep.email:
           return 0;
       }
@@ -77,50 +69,26 @@ class SignupState {
     switch (currentStep) {
       case SignupStep.email:
         return 0;
-      case SignupStep.password:
-        return 1;
       case SignupStep.profile:
-        return 2;
+        return 1;
       case SignupStep.gender:
-        return 3;
+        return 2;
       case SignupStep.location:
-        return 4;
+        return 3;
       case SignupStep.interests:
       case SignupStep.tuning:
-        return 5;
+        return 4;
     }
   }
 
   bool get hasValidEmail => looksLikeEmail(email);
-  bool get hasValidPassword => password.length >= 8;
   bool get hasName => fullName.trim().isNotEmpty;
   bool get hasGender => gender.isNotEmpty;
   bool get hasEnoughInterests => selectedInterests.length >= 3;
 
-  PasswordStrength get passwordStrength {
-    if (password.isEmpty) {
-      return PasswordStrength.empty;
-    }
-
-    if (password.length < 8) {
-      return PasswordStrength.weak;
-    }
-
-    final hasLetters = RegExp(r'[A-Za-z]').hasMatch(password);
-    final hasNumbers = RegExp(r'\d').hasMatch(password);
-    final hasSymbols = RegExp(r'[^A-Za-z0-9]').hasMatch(password);
-
-    if (hasLetters && (hasNumbers || hasSymbols)) {
-      return PasswordStrength.okay;
-    }
-
-    return PasswordStrength.medium;
-  }
-
   SignupState copyWith({
     SignupStep? currentStep,
     String? email,
-    String? password,
     String? fullName,
     DateTime? birthday,
     String? gender,
@@ -130,13 +98,12 @@ class SignupState {
     return SignupState(
       currentStep: currentStep ?? this.currentStep,
       email: email ?? this.email,
-      password: password ?? this.password,
       fullName: fullName ?? this.fullName,
       birthday: birthday ?? this.birthday,
       gender: gender ?? this.gender,
       country: country ?? this.country,
       selectedInterests: selectedInterests ?? this.selectedInterests,
-      startsFromPassword: startsFromPassword,
+      startsFromProfile: startsFromProfile,
     );
   }
 

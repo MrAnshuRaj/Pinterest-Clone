@@ -18,15 +18,6 @@ class SignupController extends StateNotifier<SignupState> {
 
   void continueFromEmail() {
     if (!state.hasValidEmail) return;
-    state = state.copyWith(currentStep: SignupStep.password);
-  }
-
-  void updatePassword(String value) {
-    state = state.copyWith(password: value);
-  }
-
-  void continueFromPassword() {
-    if (!state.hasValidPassword) return;
     state = state.copyWith(currentStep: SignupStep.profile);
   }
 
@@ -76,9 +67,8 @@ class SignupController extends StateNotifier<SignupState> {
   }
 
   Future<void> createClerkAccount(ClerkAuthService authService) {
-    return authService.signUpWithEmailAndPassword(
+    return authService.startEmailCodeSignUp(
       email: state.email,
-      password: state.password,
       fullName: state.fullName,
     );
   }
@@ -97,12 +87,9 @@ class SignupController extends StateNotifier<SignupState> {
     switch (state.currentStep) {
       case SignupStep.email:
         return;
-      case SignupStep.password:
-        if (state.startsFromPassword) return;
-        state = state.copyWith(currentStep: SignupStep.email);
-        return;
       case SignupStep.profile:
-        state = state.copyWith(currentStep: SignupStep.password);
+        if (state.startsFromProfile) return;
+        state = state.copyWith(currentStep: SignupStep.email);
         return;
       case SignupStep.gender:
         state = state.copyWith(currentStep: SignupStep.profile);

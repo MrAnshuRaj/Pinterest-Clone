@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 class PinterestTextField extends StatelessWidget {
   const PinterestTextField({
@@ -13,6 +14,7 @@ class PinterestTextField extends StatelessWidget {
     this.suffix,
     this.onSubmitted,
     this.autofillHints,
+    this.inputFormatters,
   });
 
   final TextEditingController controller;
@@ -25,6 +27,7 @@ class PinterestTextField extends StatelessWidget {
   final Widget? suffix;
   final ValueChanged<String>? onSubmitted;
   final Iterable<String>? autofillHints;
+  final List<TextInputFormatter>? inputFormatters;
 
   @override
   Widget build(BuildContext context) {
@@ -36,6 +39,7 @@ class PinterestTextField extends StatelessWidget {
       autofocus: autofocus,
       onSubmitted: onSubmitted,
       autofillHints: autofillHints,
+      inputFormatters: inputFormatters,
       cursorColor: const Color(0xFFE60023),
       style: const TextStyle(
         color: Colors.white,

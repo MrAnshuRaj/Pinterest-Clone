@@ -1,27 +1,121 @@
 # pinterest_clone
 
-A pinterest clone
+A Flutter Pinterest-inspired app with authentication, feed browsing, saved content, profile screens, creation flows, and Firestore-backed user data.
 
-## Clerk setup
+## Overview
 
-This app uses `clerk_flutter` for email/password auth, session restore, Google OAuth redirect sign-in, and logout.
+This project is structured as a feature-first Flutter app.
 
-1. Create an app in the Clerk dashboard.
-2. Enable Email/password authentication.
-3. Enable Google OAuth if you want the Google button to complete sign-in.
-4. Run the app with your publishable key:
+- `lib/main.dart`: app bootstrap, Firebase initialization, Clerk initialization, theme setup
+- `lib/app/router`: `go_router` routes and navigation guards
+- `lib/core`: shared config and Firebase helpers
+- `lib/features/auth`: email OTP auth, Google OAuth, onboarding, session/profile bootstrap
+- `lib/features/home`: home feed UI and feed data
+- `lib/features/search`: search flow and search results
+- `lib/features/saved`: saved boards and saved content
+- `lib/features/create`: create pin, board, and collage flows
+- `lib/features/profile`: account/profile UI, profile repository, settings
+- `lib/features/inbox`: inbox/update seeding and presentation
+- `lib/shared`: reusable widgets
+
+## Tech Stack
+
+- Flutter
+- Riverpod
+- GoRouter
+- Clerk (`clerk_flutter`, `clerk_auth`)
+- Firebase Core
+- Cloud Firestore
+
+## Authentication
+
+The app currently supports:
+
+- Email sign-in with Clerk email verification code / OTP
+- Email sign-up with Clerk email verification code / OTP
+- Google OAuth sign-in through Clerk
+
+The email flow is:
+
+- Login: `email -> send code -> verify code -> signed in`
+- Signup: `email -> onboarding -> send code -> verify code -> signed in`
+
+Password-based Clerk email auth is not used in the current flow.
+
+## Project Structure
+
+The codebase mainly follows this pattern inside each feature:
+
+- `application`: providers, controllers, state orchestration
+- `data`: repositories, models, services
+- `presentation`: screens, widgets, UI state
+
+This keeps UI, business flow, and persistence concerns separated while still being easy to navigate.
+
+## Requirements
+
+Before running the app, make sure you have:
+
+- Flutter SDK installed
+- A working Android Studio / VS Code Flutter setup
+- At least one emulator or physical device
+- A Clerk application
+- A Firebase project if you want Firestore-backed data to work
+
+## Installation
+
+1. Clone the repository.
+
+```bash
+git clone <your-repo-url>
+cd pinterest_clone
+```
+
+2. Install Flutter packages.
+
+```bash
+flutter pub get
+```
+
+3. Verify your Flutter environment.
+
+```bash
+flutter doctor
+```
+
+## Clerk Setup
+
+Create a Clerk app and configure it for the flows used by this project.
+
+Enable these settings in the Clerk dashboard:
+
+- Sign-in with email
+- Email verification code
+- Google OAuth if you want the Google button enabled
+
+Disable or ignore these for the current app flow:
+
+- Email verification link
+- Password-based email sign-in
+
+Run the app with your Clerk publishable key:
 
 ```bash
 flutter run --dart-define=CLERK_PUBLISHABLE_KEY=your_key_here
 ```
 
-## Google sign-in setup
+The app reads the key from `CLERK_PUBLISHABLE_KEY` in [clerk_config.dart](lib/core/config/clerk_config.dart).
 
-This app uses Clerk's redirect-based OAuth flow for Google sign-in. No native `google_sign_in` SDK is used.
+## Google OAuth Callback
 
-1. Enable Google in the Clerk dashboard.
-2. Add `yourapp://auth-callback` to the Clerk Google OAuth redirect URLs.
-3. Keep the Android callback intent filter in `android/app/src/main/AndroidManifest.xml`:
+Google sign-in uses Clerk's redirect-based OAuth flow with the custom callback:
+
+- Scheme: `yourapp`
+- Host: `auth-callback`
+
+These values are defined in [auth_config.dart](lib/core/config/auth_config.dart).
+
+For Android, keep an intent filter like this in `android/app/src/main/AndroidManifest.xml`:
 
 ```xml
 <intent-filter>
@@ -32,38 +126,49 @@ This app uses Clerk's redirect-based OAuth flow for Google sign-in. No native `g
 </intent-filter>
 ```
 
-4. Run the app with:
+Also add the same callback URL to your Clerk OAuth redirect settings:
 
-```bash
-flutter run --dart-define=CLERK_PUBLISHABLE_KEY=your_key_here
+```txt
+yourapp://auth-callback
 ```
 
-Google sign-in now opens the browser on Android and returns to the app through the custom-scheme callback.
+## Firebase / Firestore Setup
 
-## Firebase / Firestore
+Firebase is initialized in `main.dart` for Android and iOS using `firebase_options.dart`.
 
-This app keeps Clerk for authentication and uses Firestore for realtime user-specific data.
+If you are connecting the app to your own Firebase project:
 
-- Clerk is the source of truth for the signed-in user and session.
-- Firestore stores profile, settings, boards, saved Pins, created Pins, collages, and inbox updates under `users/{clerkUserId}`.
-- The current assignment demo uses the Clerk user id directly in Firestore document paths.
-- Firebase is initialized in `main.dart` with `Firebase.initializeApp(...)` and `firebase_options.dart`.
+1. Create a Firebase project.
+2. Register your Android/iOS app.
+3. Generate Firebase config for Flutter.
+4. Replace or regenerate `lib/firebase_options.dart`.
 
-### Firestore rules note
+Common way to generate the config:
 
-Current demo setup:
+```bash
+dart pub global activate flutterfire_cli
+flutterfire configure
+```
 
-- Clerk is handling auth in the Flutter app.
-- Firestore is not yet receiving Firebase Auth tokens derived from Clerk.
-- Because of that, Firestore cannot securely enforce `request.auth.uid == clerkUserId` unless you add a Clerk-to-Firebase integration.
+## Firestore Data Notes
 
-Option A: temporary demo/test rules only
+Clerk handles app authentication, while Firestore stores user app data such as:
 
-- Use relaxed or test-mode Firestore rules during development.
-- This is acceptable for an assignment demo.
-- This is not safe for production.
+- profile
+- settings
+- inbox updates
+- saved data
+- created content
 
-Example temporary test rule:
+The app stores documents under the Clerk user id path, for example:
+
+```txt
+users/{clerkUserId}
+```
+
+For demo builds, relaxed Firestore rules may be used during development. For production, you should connect Clerk identity to Firebase Auth or use a trusted backend so Firestore rules can safely enforce per-user access.
+
+Example development-only rule:
 
 ```txt
 rules_version = '2';
@@ -76,42 +181,32 @@ service cloud.firestore {
 }
 ```
 
-Option B: production-safe setup
+## Running the App
 
-- Configure Clerk Firebase integration or a custom token flow so Firebase Auth signs the user in too.
-- Make the Firebase Auth uid match the Clerk user id.
-- Then restrict each user to their own subtree in Firestore rules.
+Basic run:
 
-Example production-style rule after Clerk/Firebase token integration:
-
-```txt
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /users/{userId}/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-    }
-
-    match /pins/{pinId} {
-      allow read: if true;
-      allow write: if request.auth != null;
-    }
-  }
-}
+```bash
+flutter run --dart-define=CLERK_PUBLISHABLE_KEY=your_key_here
 ```
 
-Clerk does support Firebase-compatible auth integration, but that is intentionally not implemented here unless explicitly requested.
+Run on a specific device:
 
-## Getting Started
+```bash
+flutter devices
+flutter run -d <device_id> --dart-define=CLERK_PUBLISHABLE_KEY=your_key_here
+```
 
-This project is a starting point for a Flutter application.
+## Useful Commands
 
-A few resources to get you started if this is your first Flutter project:
+```bash
+flutter pub get
+flutter analyze
+flutter test
+flutter run
+```
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+## Notes
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+- If Clerk is not configured, the app can still boot, but auth-dependent flows will not work correctly.
+- Google sign-in opens the browser and returns through the app callback deep link.
+- Email auth is OTP-based only in the current implementation.

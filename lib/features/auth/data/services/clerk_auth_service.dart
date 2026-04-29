@@ -16,27 +16,21 @@ class ClerkAuthService {
 
   clerk.User? get currentUser => _authState.user;
 
-  Future<void> signUpWithEmailAndPassword({
+  Future<void> startEmailCodeSignUp({
     required String email,
-    required String password,
     required String fullName,
   }) async {
     _ensureConfigured();
+    _ensureValidEmail(email);
     debugPrint(
-      '[auth][signup] creating Clerk account for email=${email.trim()}',
+      '[auth][signup] starting email code sign-up for email=${email.trim()}',
     );
 
     final names = _splitName(fullName);
-    final strategy = _authState.env.supportsEmailCode
-        ? clerk.Strategy.emailCode
-        : clerk.Strategy.password;
-
     await _authState.resetClient();
     await _authState.attemptSignUp(
-      strategy: strategy,
+      strategy: clerk.Strategy.emailCode,
       emailAddress: email.trim(),
-      password: password,
-      passwordConfirmation: password,
       firstName: names.firstName,
       lastName: names.lastName,
       legalAccepted: true,
@@ -46,18 +40,38 @@ class ClerkAuthService {
 
     final signUp = _authState.signUp;
     if (signUp?.isVerifying(clerk.Strategy.emailCode) == true ||
-        signUp?.unverified(clerk.Field.emailAddress) == true) {
-      throw const ClerkEmailVerificationRequired();
+        signUp?.unverified(clerk.Field.emailAddress) == true ||
+        signUp != null) {
+      return;
     }
 
     throw ClerkAuthFailure(
-      'Account created, but Clerk needs one more verification step.',
+      'We could not send a verification code. Please try again.',
     );
   }
 
-  Future<void> verifyEmailCode({required String code}) async {
+  Future<void> resendEmailCodeSignUp({
+    required String email,
+    required String fullName,
+  }) async {
     _ensureConfigured();
-    debugPrint('[auth][email_verify] verifying code');
+    _ensureValidEmail(email);
+    debugPrint('[auth][signup] resending email code for email=${email.trim()}');
+
+    final names = _splitName(fullName);
+    await _authState.attemptSignUp(
+      strategy: clerk.Strategy.emailCode,
+      emailAddress: email.trim(),
+      firstName: names.firstName,
+      lastName: names.lastName,
+      legalAccepted: true,
+    );
+  }
+
+  Future<void> verifySignupEmailCode({required String code}) async {
+    _ensureConfigured();
+    _ensureValidVerificationCode(code);
+    debugPrint('[auth][signup_verify] verifying code');
 
     await _authState.attemptSignUp(
       strategy: clerk.Strategy.emailCode,
@@ -71,22 +85,46 @@ class ClerkAuthService {
     }
   }
 
-  Future<void> signInWithEmailAndPassword({
-    required String email,
-    required String password,
-  }) async {
+  Future<void> startEmailCodeSignIn({required String email}) async {
     _ensureConfigured();
-    debugPrint('[auth][email_login] attempting sign-in email=${email.trim()}');
+    _ensureValidEmail(email);
+    debugPrint('[auth][email_login] starting email code sign-in email=${email.trim()}');
 
     await _authState.resetClient();
     await _authState.attemptSignIn(
-      strategy: clerk.Strategy.password,
+      strategy: clerk.Strategy.emailCode,
       identifier: email.trim(),
-      password: password,
+    );
+
+    if (_authState.isSignedIn) return;
+
+    if (_authState.signIn != null) {
+      return;
+    }
+
+    throw ClerkEmailLoginFailure(
+      'We could not send a verification code. Please try again.',
+    );
+  }
+
+  Future<void> resendEmailCodeSignIn({required String email}) {
+    return startEmailCodeSignIn(email: email);
+  }
+
+  Future<void> verifyEmailCodeSignIn({required String code}) async {
+    _ensureConfigured();
+    _ensureValidVerificationCode(code);
+    debugPrint('[auth][email_login_verify] verifying code');
+
+    await _authState.attemptSignIn(
+      strategy: clerk.Strategy.emailCode,
+      code: code.trim(),
     );
 
     if (!_authState.isSignedIn) {
-      throw ClerkEmailLoginFailure('Invalid email or password.');
+      throw ClerkEmailVerificationFailure(
+        'Please check the verification code and try again.',
+      );
     }
   }
 
@@ -177,6 +215,30 @@ class ClerkAuthService {
     }
   }
 
+  void _ensureValidEmail(String email) {
+    if (!_looksLikeEmail(email)) {
+      throw ClerkAuthFailure('Enter a valid email');
+    }
+  }
+
+  void _ensureValidVerificationCode(String code) {
+    if (code.trim().length != clerk.Strategy.numericalCodeLength ||
+        !_isDigitsOnly(code)) {
+      throw ClerkEmailVerificationFailure(
+        'Please check the verification code and try again.',
+      );
+    }
+  }
+
+  bool _looksLikeEmail(String value) {
+    final normalized = value.trim();
+    return RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(normalized);
+  }
+
+  bool _isDigitsOnly(String value) {
+    return RegExp(r'^\d+$').hasMatch(value.trim());
+  }
+
   _NameParts _splitName(String fullName) {
     final parts = fullName.trim().split(RegExp(r'\s+'));
     if (parts.isEmpty || parts.first.isEmpty) {
@@ -192,10 +254,6 @@ class ClerkAuthService {
       lastName: parts.skip(1).join(' '),
     );
   }
-}
-
-class ClerkEmailVerificationRequired implements Exception {
-  const ClerkEmailVerificationRequired();
 }
 
 class ClerkEmailVerificationFailure implements Exception {
@@ -233,9 +291,6 @@ String friendlyClerkError(
   if (error is ClerkAuthFailure) return error.message;
   if (error is ClerkEmailLoginFailure) return error.message;
   if (error is ClerkGoogleAuthFailure) return error.message;
-  if (error is ClerkEmailVerificationRequired) {
-    return 'Check your email for the verification code.';
-  }
   if (error is ClerkEmailVerificationFailure) {
     return error.message;
   }
@@ -264,27 +319,20 @@ String _friendlyMessage(String raw, {required AuthErrorFlow flow}) {
   if (flow == AuthErrorFlow.emailVerification) {
     return 'Please check the verification code and try again.';
   }
+  if (message.contains('invalid') &&
+      message.contains('email') &&
+      !message.contains('code')) {
+    return 'Enter a valid email';
+  }
   if (flow == AuthErrorFlow.emailLogin &&
-      (message.contains('identifier') ||
-          message.contains('not found') ||
-          message.contains('password') ||
-          message.contains('invalid'))) {
-    return 'Invalid email or password.';
-  }
-  if (message.contains('invalid') && message.contains('email')) {
-    return 'Please enter a valid email address.';
-  }
-  if (message.contains('password') && message.contains('incorrect')) {
-    return 'That password does not look right.';
+      (message.contains('identifier') || message.contains('not found'))) {
+    return 'We could not find an account with that email.';
   }
   if (message.contains('identifier') || message.contains('not found')) {
     return 'We could not find an account with those details.';
   }
   if (message.contains('already') || message.contains('exists')) {
     return 'An account with this email already exists. Try logging in.';
-  }
-  if (message.contains('password')) {
-    return 'Please use a stronger password.';
   }
   if (message.contains('network') || message.contains('socket')) {
     return 'Please check your connection and try again.';

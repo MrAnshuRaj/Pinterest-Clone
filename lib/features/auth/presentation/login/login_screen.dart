@@ -1,7 +1,7 @@
+import 'package:clerk_flutter/clerk_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:clerk_flutter/clerk_flutter.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/config/clerk_config.dart';
@@ -23,21 +23,21 @@ class LoginScreen extends ConsumerStatefulWidget {
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
+  final _verificationController = TextEditingController();
 
-  bool _showPassword = false;
+  bool _isAwaitingCode = false;
   String? _error;
 
   bool get _isIos => Theme.of(context).platform == TargetPlatform.iOS;
-  bool get _canLogin =>
-      SignupState.looksLikeEmail(_emailController.text.trim()) &&
-      _passwordController.text.length >= 6;
+  bool get _canSendCode =>
+      SignupState.looksLikeEmail(_emailController.text.trim());
+  bool get _canVerifyCode => _verificationController.text.trim().length == 6;
 
   @override
   void initState() {
     super.initState();
     _emailController.addListener(_onChanged);
-    _passwordController.addListener(_onChanged);
+    _verificationController.addListener(_onChanged);
   }
 
   void _onChanged() {
@@ -77,18 +77,74 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _handleEmailLogin() async {
-    if (!_canLogin) return;
+    final email = _emailController.text.trim();
+    if (!SignupState.looksLikeEmail(email)) {
+      setState(() {
+        _error = 'Enter a valid email';
+      });
+      return;
+    }
+
     await _runAuth(
-      (service) => service.signInWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text,
-      ),
+      flow: AuthErrorFlow.emailLogin,
+      action: (service) => service.startEmailCodeSignIn(email: email),
+      onSuccess: (authState) async {
+        if (authState.isSignedIn) {
+          await _syncSignedInUser(authState);
+          if (!mounted) return;
+          context.go('/main');
+          return;
+        }
+
+        if (!mounted) return;
+        setState(() {
+          _isAwaitingCode = true;
+        });
+      },
     );
   }
 
-  Future<void> _runAuth(
-    Future<void> Function(ClerkAuthService service) action,
-  ) async {
+  Future<void> _handleVerifyCode() async {
+    if (!_canVerifyCode) {
+      setState(() {
+        _error = 'Please check the verification code and try again.';
+      });
+      return;
+    }
+
+    await _runAuth(
+      flow: AuthErrorFlow.emailVerification,
+      action: (service) =>
+          service.verifyEmailCodeSignIn(code: _verificationController.text),
+      onSuccess: (authState) async {
+        await _syncSignedInUser(authState);
+        if (!mounted) return;
+        context.go('/main');
+      },
+    );
+  }
+
+  Future<void> _handleResendCode() async {
+    final email = _emailController.text.trim();
+    if (!SignupState.looksLikeEmail(email)) {
+      setState(() {
+        _error = 'Enter a valid email';
+      });
+      return;
+    }
+
+    await _runAuth(
+      flow: AuthErrorFlow.emailLogin,
+      action: (service) => service.resendEmailCodeSignIn(email: email),
+      onSuccess: (_) async {},
+    );
+  }
+
+  Future<void> _runAuth({
+    required AuthErrorFlow flow,
+    required Future<void> Function(ClerkAuthService service) action,
+    Future<void> Function(ClerkAuthState authState)? onSuccess,
+  }) async {
     FocusScope.of(context).unfocus();
 
     if (!isClerkConfigured) {
@@ -105,13 +161,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       final authState = ClerkAuth.of(context, listen: false);
       final service = ref.read(clerkAuthServiceProvider(authState));
       await action(service);
-      await _syncSignedInUser(authState);
-      if (!mounted) return;
-      context.go('/main');
+      if (onSuccess != null) {
+        await onSuccess(authState);
+      }
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        _error = friendlyClerkError(error, flow: AuthErrorFlow.emailLogin);
+        _error = friendlyClerkError(error, flow: flow);
       });
     } finally {
       if (mounted) {
@@ -129,7 +185,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   void dispose() {
     _emailController.dispose();
-    _passwordController.dispose();
+    _verificationController.dispose();
     super.dispose();
   }
 
@@ -139,7 +195,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       return;
     }
 
-    final preferredEmail = user.email?.trim();
+    final enteredEmail = _emailController.text.trim();
+    final preferredEmail = enteredEmail.isNotEmpty
+        ? enteredEmail
+        : (user.email?.trim().isNotEmpty == true
+              ? user.email!.trim()
+              : user.emailAddresses
+                    ?.map((item) => item.emailAddress.trim())
+                    .where((item) => item.isNotEmpty)
+                    .firstOrNull);
     final preferredName = user.name.trim();
     final preferredUsername =
         preferredEmail != null &&
@@ -166,6 +230,126 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Widget build(BuildContext context) {
     final loading = ref.watch(loginLoadingProvider);
     final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+
+    if (_isAwaitingCode) {
+      return AnnotatedRegion<SystemUiOverlayStyle>(
+        value: SystemUiOverlayStyle.light,
+        child: GestureDetector(
+          onTap: () => FocusScope.of(context).unfocus(),
+          child: Scaffold(
+            backgroundColor: Colors.black,
+            body: SafeArea(
+              child: SingleChildScrollView(
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                padding: EdgeInsets.fromLTRB(24, 12, 24, 24 + bottomInset),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    IconButton(
+                      onPressed: loading
+                          ? null
+                          : () {
+                              setState(() {
+                                _isAwaitingCode = false;
+                                _verificationController.clear();
+                                _error = null;
+                              });
+                            },
+                      icon: const Icon(
+                        Icons.chevron_left_rounded,
+                        color: Colors.white,
+                        size: 34,
+                      ),
+                    ),
+                    const SizedBox(height: 28),
+                    const Text('Enter your code', style: _headingStyle),
+                    const SizedBox(height: 14),
+                    Text(
+                      'We sent a code to ${_emailController.text.trim()}',
+                      style: const TextStyle(
+                        color: Color(0xFFD7D7D7),
+                        fontSize: 18,
+                        height: 1.35,
+                      ),
+                    ),
+                    const SizedBox(height: 28),
+                    _LoginTextField(
+                      controller: _verificationController,
+                      label: 'Verification code',
+                      hint: '6-digit code',
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(6),
+                      ],
+                      onSubmitted: (_) => _handleVerifyCode(),
+                    ),
+                    if (_error != null) ...[
+                      const SizedBox(height: 16),
+                      Text(
+                        _error!,
+                        style: const TextStyle(
+                          color: Color(0xFFFF8A8A),
+                          fontSize: 14,
+                          height: 1.35,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    TextButton(
+                      onPressed: loading ? null : _handleResendCode,
+                      child: Text(
+                        loading ? 'Sending...' : 'Resend code',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 56,
+                      child: FilledButton(
+                        onPressed: loading || !_canVerifyCode
+                            ? null
+                            : _handleVerifyCode,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFFE60023),
+                          disabledBackgroundColor: const Color(0xFF4B4C47),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        child: loading
+                            ? const SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.4,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Text(
+                                'Verify',
+                                style: TextStyle(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
@@ -239,27 +423,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     label: 'Email',
                     hint: 'Enter your email',
                     keyboardType: TextInputType.emailAddress,
-                  ),
-                  const SizedBox(height: 18),
-                  _LoginTextField(
-                    controller: _passwordController,
-                    label: 'Password',
-                    hint: 'Enter your password',
-                    obscureText: !_showPassword,
-                    suffix: IconButton(
-                      onPressed: () {
-                        setState(() {
-                          _showPassword = !_showPassword;
-                        });
-                      },
-                      icon: Icon(
-                        _showPassword
-                            ? Icons.visibility_off_outlined
-                            : Icons.visibility_outlined,
-                        color: Colors.white,
-                        size: 30,
-                      ),
-                    ),
                     onSubmitted: (_) => _handleEmailLogin(),
                   ),
                   const SizedBox(height: 38),
@@ -267,7 +430,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     width: double.infinity,
                     height: 56,
                     child: FilledButton(
-                      onPressed: loading || !_canLogin
+                      onPressed: loading || !_canSendCode
                           ? null
                           : _handleEmailLogin,
                       style: FilledButton.styleFrom(
@@ -287,7 +450,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               ),
                             )
                           : const Text(
-                              'Log in',
+                              'Send code',
                               style: TextStyle(
                                 fontSize: 17,
                                 fontWeight: FontWeight.w700,
@@ -326,26 +489,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       fontWeight: FontWeight.w500,
                     ),
                   ),
-                  const SizedBox(height: 26),
-                  const Text(
-                    'Forgot your password?',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  if (_isIos) ...[
-                    const SizedBox(height: 24),
-                    const Text(
-                      'Use iCloud Keychain',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
                 ],
               ),
             ),
@@ -369,31 +512,34 @@ class _SocialButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(18),
-      child: InkWell(
-        onTap: onTap,
+    return SizedBox(
+      width: double.infinity,
+      child: Material(
+        color: Colors.transparent,
         borderRadius: BorderRadius.circular(18),
-        child: Container(
-          height: 66,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: const Color(0xFFD7D7D7), width: 1.2),
-          ),
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              Positioned(left: 22, child: icon),
-              Text(
-                label,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 19,
-                  fontWeight: FontWeight.w700,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(18),
+          child: Container(
+            height: 66,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: const Color(0xFFD7D7D7), width: 1.2),
+            ),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Positioned(left: 22, child: icon),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 19,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -407,8 +553,7 @@ class _LoginTextField extends StatelessWidget {
     required this.label,
     required this.hint,
     this.keyboardType,
-    this.obscureText = false,
-    this.suffix,
+    this.inputFormatters,
     this.onSubmitted,
   });
 
@@ -416,8 +561,7 @@ class _LoginTextField extends StatelessWidget {
   final String label;
   final String hint;
   final TextInputType? keyboardType;
-  final bool obscureText;
-  final Widget? suffix;
+  final List<TextInputFormatter>? inputFormatters;
   final ValueChanged<String>? onSubmitted;
 
   @override
@@ -444,7 +588,7 @@ class _LoginTextField extends StatelessWidget {
             child: TextField(
               controller: controller,
               keyboardType: keyboardType,
-              obscureText: obscureText,
+              inputFormatters: inputFormatters,
               textInputAction: onSubmitted == null
                   ? TextInputAction.next
                   : TextInputAction.go,
@@ -462,7 +606,6 @@ class _LoginTextField extends StatelessWidget {
                 hintText: hint,
                 isDense: true,
                 contentPadding: EdgeInsets.zero,
-                suffixIcon: suffix,
               ),
             ),
           ),
@@ -471,3 +614,11 @@ class _LoginTextField extends StatelessWidget {
     );
   }
 }
+
+const _headingStyle = TextStyle(
+  color: Colors.white,
+  fontSize: 34,
+  fontWeight: FontWeight.w700,
+  height: 1.05,
+  letterSpacing: -1.2,
+);

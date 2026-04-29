@@ -123,14 +123,14 @@ class UserProfileRepository {
     required String fallbackEmail,
     required String fallbackAvatarInitial,
   }) {
-    final nextName = profile.name.trim().isEmpty ? fallbackName : profile.name;
-    final nextUsername = profile.username.trim().isEmpty
+    final nextName = _isMissingText(profile.name) ? fallbackName : profile.name;
+    final nextUsername = _isMissingText(profile.username)
         ? fallbackUsername
         : normalizeUsername(profile.username);
-    final nextEmail = profile.email.trim().isEmpty
+    final nextEmail = _isMissingText(profile.email)
         ? fallbackEmail
         : profile.email;
-    final nextAvatarInitial = profile.avatarInitial.trim().isEmpty
+    final nextAvatarInitial = _isMissingText(profile.avatarInitial)
         ? fallbackAvatarInitial
         : profile.avatarInitial;
 
@@ -147,6 +147,11 @@ class UserProfileRepository {
         current.username != repaired.username ||
         current.email != repaired.email ||
         current.avatarInitial != repaired.avatarInitial;
+  }
+
+  bool _isMissingText(String value) {
+    final cleaned = value.trim().toLowerCase();
+    return cleaned.isEmpty || cleaned == 'null' || cleaned == 'undefined';
   }
 
   Future<void> updateProfile(String userId, UserProfileModel profile) {
