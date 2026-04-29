@@ -1,7 +1,9 @@
 import 'package:clerk_auth/clerk_auth.dart' as clerk;
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../../../core/firebase/firestore_refs.dart';
+import '../../../auth/application/clerk_user_profile_seed.dart';
 import '../models/user_profile_model.dart';
 
 class UserProfileRepository {
@@ -13,12 +15,19 @@ class UserProfileRepository {
   Stream<UserProfileModel?> watchProfile(String userId) {
     return _refs.userDoc(userId).snapshots().map((snapshot) {
       if (!snapshot.exists) return null;
-      return UserProfileModel.fromMap(snapshot.data() ?? const {});
+      final profile = UserProfileModel.fromMap(snapshot.data() ?? const {});
+      debugPrint(
+        '[profile] loaded userId=$userId name="${profile.name}" username="${profile.username}" email="${profile.email}"',
+      );
+      return profile;
     });
   }
 
   Future<UserProfileModel> getOrCreateProfileFromClerk({
     required clerk.User user,
+    String? preferredName,
+    String? preferredEmail,
+    String? preferredUsername,
     DateTime? birthday,
     String? gender,
     String? country,
@@ -28,19 +37,26 @@ class UserProfileRepository {
     final doc = _refs.userDoc(user.id);
     final snapshot = await doc.get();
     final now = DateTime.now();
-    final email = (user.email ?? '').trim();
-    final name = _deriveName(user);
-    final username = _buildUsername(
-      user.username ?? email.split('@').firstOrNull ?? name,
+    final seed = deriveClerkUserProfileSeed(
+      user,
+      preferredName: preferredName,
+      preferredEmail: preferredEmail,
+      preferredUsername: preferredUsername,
     );
+
+    debugPrint(
+      '[profile] sync start userId=${seed.userId} email=${seed.email} name="${seed.name}" username="${seed.username}"',
+    );
+    debugPrint('[profile] firestore doc exists=${snapshot.exists}');
 
     if (snapshot.exists && snapshot.data() != null) {
       final current = UserProfileModel.fromMap(snapshot.data()!);
       final repaired = _repairProfile(
         current,
-        fallbackName: name,
-        fallbackUsername: username,
-        fallbackEmail: email,
+        fallbackName: seed.name,
+        fallbackUsername: seed.username,
+        fallbackEmail: seed.email,
+        fallbackAvatarInitial: seed.avatarInitial,
       );
 
       if (_needsRepair(current, repaired)) {
@@ -49,24 +65,27 @@ class UserProfileRepository {
           'username': repaired.username,
           'email': repaired.email,
           'avatarInitial': repaired.avatarInitial,
-          'updatedAt': Timestamp.fromDate(now),
+          'updatedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
+        debugPrint(
+          '[profile] repaired missing fields for userId=${seed.userId}',
+        );
       }
 
       return repaired;
     }
 
     final profile = UserProfileModel(
-      name: name,
-      username: username,
-      email: email,
-      avatarInitial: _avatarInitialFor(name, email),
+      name: seed.name,
+      username: seed.username,
+      email: seed.email,
+      avatarInitial: seed.avatarInitial,
       bio: '',
       website: '',
       pronouns: '',
       birthday: birthday ?? DateTime.fromMillisecondsSinceEpoch(0),
       gender: gender ?? '',
-      country: country ?? 'India',
+      country: country ?? '',
       language: language ?? 'English (India)',
       showAllPins: true,
       isBusinessAccount: false,
@@ -75,7 +94,25 @@ class UserProfileRepository {
       updatedAt: now,
     );
 
-    await doc.set(profile.toMap());
+    await doc.set({
+      'name': profile.name,
+      'username': profile.username,
+      'email': profile.email,
+      'avatarInitial': profile.avatarInitial,
+      'bio': profile.bio,
+      'website': profile.website,
+      'pronouns': profile.pronouns,
+      'birthday': birthday == null ? null : Timestamp.fromDate(birthday),
+      'gender': profile.gender,
+      'country': profile.country,
+      'language': profile.language,
+      'showAllPins': profile.showAllPins,
+      'isBusinessAccount': profile.isBusinessAccount,
+      'selectedInterests': profile.selectedInterests,
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+    debugPrint('[profile] created firestore profile for userId=${seed.userId}');
     return profile;
   }
 
@@ -84,14 +121,17 @@ class UserProfileRepository {
     required String fallbackName,
     required String fallbackUsername,
     required String fallbackEmail,
+    required String fallbackAvatarInitial,
   }) {
     final nextName = profile.name.trim().isEmpty ? fallbackName : profile.name;
     final nextUsername = profile.username.trim().isEmpty
         ? fallbackUsername
-        : _buildUsername(profile.username);
-    final nextEmail = profile.email.trim().isEmpty ? fallbackEmail : profile.email;
+        : normalizeUsername(profile.username);
+    final nextEmail = profile.email.trim().isEmpty
+        ? fallbackEmail
+        : profile.email;
     final nextAvatarInitial = profile.avatarInitial.trim().isEmpty
-        ? _avatarInitialFor(nextName, nextEmail)
+        ? fallbackAvatarInitial
         : profile.avatarInitial;
 
     return profile.copyWith(
@@ -124,43 +164,4 @@ class UserProfileRepository {
       'updatedAt': Timestamp.fromDate(DateTime.now()),
     }, SetOptions(merge: true));
   }
-
-  String _deriveName(clerk.User user) {
-    final fromClerk = user.name.trim();
-    if (fromClerk.isNotEmpty) return fromClerk;
-    final email = (user.email ?? '').trim();
-    if (email.isEmpty) return 'Pinterest User';
-
-    final prefix = email.split('@').first;
-    return prefix
-        .split(RegExp(r'[._-]+'))
-        .where((part) => part.trim().isNotEmpty)
-        .map(_capitalize)
-        .join(' ');
-  }
-
-  String _buildUsername(String raw) {
-    final base = raw
-        .trim()
-        .toLowerCase()
-        .replaceAll(RegExp(r'[^a-z0-9]+'), '')
-        .replaceAll('@', '');
-    final normalized = base.isEmpty ? 'pinterestuser' : base;
-    return normalized.length > 20 ? normalized.substring(0, 20) : normalized;
-  }
-
-  String _avatarInitialFor(String name, String email) {
-    final seed = name.trim().isNotEmpty ? name.trim() : email.trim();
-    if (seed.isEmpty) return 'P';
-    return seed.substring(0, 1).toUpperCase();
-  }
-
-  String _capitalize(String value) {
-    if (value.isEmpty) return value;
-    return '${value[0].toUpperCase()}${value.substring(1)}';
-  }
-}
-
-extension on List<String> {
-  String? get firstOrNull => isEmpty ? null : first;
 }

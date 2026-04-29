@@ -22,20 +22,22 @@ class BoardModel {
   final DateTime updatedAt;
 
   factory BoardModel.fromMap(Map<String, dynamic> map, {required String id}) {
+    final now = DateTime.now();
     return BoardModel(
       id: id,
-      name: map['name'] as String? ?? '',
+      name: (map['name'] as String? ?? '').trim(),
       coverImageUrls: stringListFrom(map['coverImageUrls']),
       pinIds: stringListFrom(map['pinIds']),
       isSecret: map['isSecret'] as bool? ?? false,
       isGroupBoard: map['isGroupBoard'] as bool? ?? false,
-      createdAt: parseFirestoreDate(map['createdAt']),
-      updatedAt: parseFirestoreDate(map['updatedAt']),
+      createdAt: parseFirestoreDate(map['createdAt'], fallback: now),
+      updatedAt: parseFirestoreDate(map['updatedAt'], fallback: now),
     );
   }
 
   Map<String, dynamic> toMap() {
     return {
+      'id': id,
       'name': name,
       'coverImageUrls': coverImageUrls,
       'pinIds': pinIds,

@@ -41,6 +41,7 @@ import '../../features/profile/presentation/settings/refine_recommendations_scre
 import '../../features/profile/presentation/settings/reports_violations_screen.dart';
 import '../../features/profile/presentation/settings/security_logins_screen.dart';
 import '../../features/profile/presentation/settings/social_permissions_screen.dart';
+import '../../features/saved/application/saved_providers.dart';
 import '../../features/search/presentation/filter_screen.dart';
 import '../../features/search/presentation/search_results_screen.dart';
 import '../../features/search/presentation/search_typing_screen.dart';
@@ -104,7 +105,12 @@ final appRouterProvider = Provider.family<GoRouter, ClerkAuthState?>((
       ),
       GoRoute(
         path: '/saved',
-        builder: (context, state) => const MainShell(initialIndex: 4),
+        builder: (context, state) {
+          final tabIndex = savedTabIndexFromQuery(
+            state.uri.queryParameters['tab'],
+          );
+          return MainShell(initialIndex: 4, savedTabIndex: tabIndex);
+        },
       ),
       GoRoute(
         path: '/search',

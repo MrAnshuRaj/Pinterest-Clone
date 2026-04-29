@@ -85,6 +85,7 @@ class SignupController extends StateNotifier<SignupState> {
 
   Future<void> syncOnboardingProfileToClerk(ClerkAuthService authService) {
     return authService.syncOnboardingProfileToClerk(
+      fullName: state.fullName,
       birthday: state.birthday,
       gender: state.gender,
       country: state.country,

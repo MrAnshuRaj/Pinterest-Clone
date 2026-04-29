@@ -153,7 +153,8 @@ class ShareProfileSheet extends ConsumerWidget {
                   onTap: () async {
                     await Clipboard.setData(
                       ClipboardData(
-                        text: 'https://pinterest.clone/${profile.username}',
+                        text:
+                            'https://pinterest.clone/${profile.normalizedUsername}',
                       ),
                     );
                     if (context.mounted) {

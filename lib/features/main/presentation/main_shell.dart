@@ -8,10 +8,16 @@ import '../../saved/presentation/saved_screen.dart';
 import '../../search/presentation/search_screen.dart';
 
 class MainShell extends StatefulWidget {
-  const MainShell({super.key, this.initialIndex = 0, this.searchChild});
+  const MainShell({
+    super.key,
+    this.initialIndex = 0,
+    this.searchChild,
+    this.savedTabIndex,
+  });
 
   final int initialIndex;
   final Widget? searchChild;
+  final int? savedTabIndex;
 
   @override
   State<MainShell> createState() => _MainShellState();
@@ -59,7 +65,7 @@ class _MainShellState extends State<MainShell> {
       widget.searchChild ?? const SearchScreen(),
       const SizedBox.shrink(),
       InboxScreen(onBrowseHome: () => setState(() => _index = 0)),
-      const SavedScreen(),
+      SavedScreen(initialTabIndex: widget.savedTabIndex),
     ];
 
     return Scaffold(

@@ -3,8 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../shared/widgets/pinterest_cached_image.dart';
-import '../../../auth/application/auth_providers.dart';
 import '../../data/models/created_pin_model.dart';
+import '../create_debug_error.dart';
 import '../../../home/data/models/pin_model.dart';
 import '../../../profile/application/profile_providers.dart';
 import '../../../saved/application/saved_providers.dart';
@@ -54,21 +54,12 @@ class _CreatePinScreenState extends ConsumerState<CreatePinScreen> {
   Future<void> _createPin() async {
     if (!_canCreate) return;
 
-    final userId = ref.read(currentUserIdProvider);
-    if (userId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('You need to be signed in before creating a Pin.'),
-        ),
-      );
-      return;
-    }
-
     FocusScope.of(context).unfocus();
     setState(() => _isSubmitting = true);
 
     final profile = ref.read(profileProvider);
-    final pinId = 'created-${DateTime.now().microsecondsSinceEpoch}';
+    final now = DateTime.now();
+    final pinId = now.millisecondsSinceEpoch.toString();
     final createdPin = CreatedPinModel(
       id: pinId,
       title: _titleController.text.trim(),
@@ -80,7 +71,8 @@ class _CreatePinScreenState extends ConsumerState<CreatePinScreen> {
       altText: '',
       allowComments: true,
       showSimilarProducts: true,
-      createdAt: DateTime.now(),
+      createdAt: now,
+      updatedAt: now,
     );
     final pin = PinModel(
       id: pinId,
@@ -96,24 +88,34 @@ class _CreatePinScreenState extends ConsumerState<CreatePinScreen> {
     );
 
     try {
-      final controller = ref.read(savedContentControllerProvider);
-      await controller.createPin(createdPin);
-      await controller.savePin(pin);
+      final store = ref.read(localSavedStoreProvider.notifier);
+      store.createPin(createdPin);
       if (_boardId != null) {
-        await controller.addPinsToBoard(_boardId!, [pin]);
+        store.addPinsToBoard(_boardId!, [pin]);
       }
 
-      ref.read(savedTabProvider.notifier).state = 0;
+      store.setSelectedTab(savedTabFromIndex(savedPinsTabIndex));
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Pin created')));
-      context.go('/saved');
-    } catch (_) {
+      context.go('/saved?tab=pins');
+    } catch (error) {
       if (!mounted) return;
+      final failedPath = _boardId != null
+          ? 'local/in-memory/boards/$_boardId + local/in-memory/createdPins/$pinId'
+          : 'local/in-memory/createdPins/$pinId';
+      debugPrint('[create-pin] error path=$failedPath error=$error');
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Could not create Pin right now. Please try again.'),
+        SnackBar(
+          duration: const Duration(seconds: 8),
+          content: Text(
+            formatCreateDebugError(
+              error,
+              operation: 'Create Pin',
+              path: failedPath,
+            ),
+          ),
         ),
       );
     } finally {
@@ -236,9 +238,7 @@ class _CreatePinScreenState extends ConsumerState<CreatePinScreen> {
                   ),
                   _CreateRow(
                     label: 'Tag related topics',
-                    value: _topics.isEmpty
-                        ? null
-                        : _topics.take(2).join(', '),
+                    value: _topics.isEmpty ? null : _topics.take(2).join(', '),
                     onTap: _openTopics,
                   ),
                   _CreateRow(

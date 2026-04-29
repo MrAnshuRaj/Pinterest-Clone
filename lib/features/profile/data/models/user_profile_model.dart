@@ -1,4 +1,5 @@
 import '../../../../core/firebase/firestore_utils.dart';
+import '../../../auth/application/clerk_user_profile_seed.dart';
 
 class UserProfileModel {
   const UserProfileModel({
@@ -37,7 +38,10 @@ class UserProfileModel {
   final DateTime createdAt;
   final DateTime updatedAt;
 
-  String get handle => username.trim().isEmpty ? '@pinterestuser' : '@$username';
+  String get normalizedUsername => normalizeUsername(username);
+
+  String get handle =>
+      '@${normalizedUsername.isEmpty ? 'user' : normalizedUsername}';
 
   factory UserProfileModel.empty() {
     final now = DateTime.now();
@@ -63,18 +67,26 @@ class UserProfileModel {
 
   factory UserProfileModel.fromMap(Map<String, dynamic> map) {
     final empty = UserProfileModel.empty();
+    final name = (map['name'] as String? ?? empty.name).trim();
+    final username = _sanitizeStoredUsername(
+      map['username'] as String? ?? empty.username,
+    );
+    final email = (map['email'] as String? ?? empty.email).trim();
+    final avatarInitialRaw = (map['avatarInitial'] as String? ?? '').trim();
     return UserProfileModel(
-      name: map['name'] as String? ?? empty.name,
-      username: map['username'] as String? ?? empty.username,
-      email: map['email'] as String? ?? empty.email,
-      avatarInitial: map['avatarInitial'] as String? ?? empty.avatarInitial,
-      bio: map['bio'] as String? ?? empty.bio,
-      website: map['website'] as String? ?? empty.website,
-      pronouns: map['pronouns'] as String? ?? empty.pronouns,
+      name: name,
+      username: username,
+      email: email,
+      avatarInitial: avatarInitialRaw.isNotEmpty
+          ? avatarInitialRaw.substring(0, 1).toUpperCase()
+          : deriveAvatarInitial(name: name, email: email),
+      bio: (map['bio'] as String? ?? empty.bio).trim(),
+      website: (map['website'] as String? ?? empty.website).trim(),
+      pronouns: (map['pronouns'] as String? ?? empty.pronouns).trim(),
       birthday: parseFirestoreDate(map['birthday']),
-      gender: map['gender'] as String? ?? empty.gender,
-      country: map['country'] as String? ?? empty.country,
-      language: map['language'] as String? ?? empty.language,
+      gender: (map['gender'] as String? ?? empty.gender).trim(),
+      country: (map['country'] as String? ?? empty.country).trim(),
+      language: (map['language'] as String? ?? empty.language).trim(),
       showAllPins: map['showAllPins'] as bool? ?? empty.showAllPins,
       isBusinessAccount:
           map['isBusinessAccount'] as bool? ?? empty.isBusinessAccount,
@@ -148,4 +160,14 @@ class UserProfileModel {
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
+}
+
+String _sanitizeStoredUsername(String raw) {
+  return raw
+      .trim()
+      .toLowerCase()
+      .replaceAll('@', '')
+      .replaceAll(RegExp(r'[^a-z0-9._-]+'), '')
+      .replaceAll(RegExp(r'[._-]{2,}'), '_')
+      .replaceAll(RegExp(r'^[._-]+|[._-]+$'), '');
 }

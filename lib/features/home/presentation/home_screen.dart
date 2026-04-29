@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
+import 'package:go_router/go_router.dart';
 
 import '../data/models/pin_model.dart';
 import '../data/repositories/pin_repository.dart';
@@ -61,9 +62,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     try {
       final pageToLoad = reset ? 0 : _nextPage;
-      final items = await ref.read(pinRepositoryProvider).getHomeFeedPage(
-        page: pageToLoad,
-      );
+      final items = await ref
+          .read(pinRepositoryProvider)
+          .getHomeFeedPage(page: pageToLoad);
 
       if (!mounted) return;
 
@@ -127,7 +128,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ),
                 const Spacer(),
                 IconButton(
-                  onPressed: () {},
+                  onPressed: () =>
+                      context.push('/profile/settings/refine-recommendations'),
                   style: IconButton.styleFrom(
                     backgroundColor: const Color(0xFF4B4D48),
                     foregroundColor: Colors.white,
@@ -141,9 +143,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ],
             ),
           ),
-          Expanded(
-            child: _buildFeed(context),
-          ),
+          Expanded(child: _buildFeed(context)),
         ],
       ),
     );

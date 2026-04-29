@@ -23,22 +23,24 @@ class CreatedCollageModel {
 
   factory CreatedCollageModel.fromMap(Map<String, dynamic> map, {String? id}) {
     final imageUrls = stringListFrom(map['imageUrls']);
+    final now = DateTime.now();
     return CreatedCollageModel(
       id: id ?? map['id'] as String? ?? '',
-      title: map['title'] as String? ?? '',
-      description: map['description'] as String? ?? '',
+      title: (map['title'] as String? ?? '').trim(),
+      description: (map['description'] as String? ?? '').trim(),
       imageUrls: imageUrls,
       previewImageUrl:
           map['previewImageUrl'] as String? ??
           (imageUrls.isEmpty ? '' : imageUrls.first),
       isDraft: map['isDraft'] as bool? ?? false,
-      createdAt: parseFirestoreDate(map['createdAt']),
-      updatedAt: parseFirestoreDate(map['updatedAt']),
+      createdAt: parseFirestoreDate(map['createdAt'], fallback: now),
+      updatedAt: parseFirestoreDate(map['updatedAt'], fallback: now),
     );
   }
 
   Map<String, dynamic> toMap() {
     return {
+      'id': id,
       'title': title,
       'description': description,
       'imageUrls': imageUrls,

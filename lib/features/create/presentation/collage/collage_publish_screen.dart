@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../shared/widgets/pinterest_cached_image.dart';
 import '../../data/models/created_collage_model.dart';
+import '../create_debug_error.dart';
 import '../../../saved/application/saved_providers.dart';
 
 class CollagePublishScreen extends ConsumerStatefulWidget {
@@ -21,6 +22,7 @@ class _CollagePublishScreenState extends ConsumerState<CollagePublishScreen> {
   final _descriptionController = TextEditingController();
   final _altController = TextEditingController();
   bool _remixing = true;
+  bool _isSubmitting = false;
 
   @override
   void dispose() {
@@ -46,23 +48,73 @@ class _CollagePublishScreenState extends ConsumerState<CollagePublishScreen> {
   }
 
   Future<void> _saveDraft() async {
-    await ref
-        .read(savedContentControllerProvider)
-        .saveCollageDraft(_collage(draft: true));
-    if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Collage saved for later')));
-    context.go('/saved');
+    if (_isSubmitting) return;
+
+    setState(() => _isSubmitting = true);
+    final collage = _collage(draft: true);
+    try {
+      ref.read(localSavedStoreProvider.notifier).saveCollageDraft(collage);
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Collage saved for later')));
+      context.go('/saved?tab=collages');
+    } catch (error) {
+      if (!mounted) return;
+      final path = 'local/in-memory/collages/${collage.id}';
+      debugPrint('[create-collage] draft error path=$path error=$error');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          duration: const Duration(seconds: 8),
+          content: Text(
+            formatCreateDebugError(
+              error,
+              operation: 'Save Collage Draft',
+              path: path,
+            ),
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
+    }
   }
 
   Future<void> _create() async {
-    await ref.read(savedContentControllerProvider).createCollage(_collage());
-    if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Collage created')));
-    context.go('/saved');
+    if (_isSubmitting) return;
+
+    setState(() => _isSubmitting = true);
+    final collage = _collage();
+    try {
+      ref.read(localSavedStoreProvider.notifier).createCollage(collage);
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Collage created')));
+      context.go('/saved?tab=collages');
+    } catch (error) {
+      if (!mounted) return;
+      final path = 'local/in-memory/collages/${collage.id}';
+      debugPrint('[create-collage] create error path=$path error=$error');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          duration: const Duration(seconds: 8),
+          content: Text(
+            formatCreateDebugError(
+              error,
+              operation: 'Create Collage',
+              path: path,
+            ),
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
+    }
   }
 
   @override
@@ -237,7 +289,7 @@ class _CollagePublishScreenState extends ConsumerState<CollagePublishScreen> {
                 children: [
                   Expanded(
                     child: FilledButton(
-                      onPressed: _saveDraft,
+                      onPressed: _isSubmitting ? null : _saveDraft,
                       style: FilledButton.styleFrom(
                         backgroundColor: const Color(0xFF4A4B45),
                         fixedSize: const Size.fromHeight(66),
@@ -257,7 +309,7 @@ class _CollagePublishScreenState extends ConsumerState<CollagePublishScreen> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: FilledButton(
-                      onPressed: _create,
+                      onPressed: _isSubmitting ? null : _create,
                       style: FilledButton.styleFrom(
                         backgroundColor: const Color(0xFFE60023),
                         fixedSize: const Size.fromHeight(66),

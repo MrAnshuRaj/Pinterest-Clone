@@ -8,9 +8,6 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/config/clerk_config.dart';
 import '../../application/auth_providers.dart';
 import '../../data/services/clerk_auth_service.dart';
-import '../../../inbox/application/inbox_providers.dart';
-import '../../../profile/application/profile_providers.dart';
-import '../../../profile/application/settings_providers.dart';
 import '../signup/signup_state.dart';
 import '../widgets/auth_button.dart';
 import '../widgets/auth_image_collage.dart';
@@ -51,6 +48,7 @@ class _AuthLandingScreenState extends ConsumerState<AuthLandingScreen> {
     if (_googleLoading) return;
 
     FocusScope.of(context).unfocus();
+    debugPrint('[auth][google] button tapped');
 
     if (!isClerkConfigured) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -71,24 +69,13 @@ class _AuthLandingScreenState extends ConsumerState<AuthLandingScreen> {
       final authState = ClerkAuth.of(context, listen: false);
       final service = ref.read(clerkAuthServiceProvider(authState));
       await service.signInWithGoogle(context);
-      final user = authState.user;
-      if (user != null) {
-        await ref
-            .read(userProfileRepositoryProvider)
-            .getOrCreateProfileFromClerk(user: user);
-        await ref
-            .read(appSettingsRepositoryProvider)
-            .ensureDefaultSettings(user.id);
-        await ref
-            .read(inboxRepositoryProvider)
-            .seedDefaultUpdatesIfEmpty(user.id);
-      }
-      if (mounted) context.go('/main');
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(friendlyClerkError(error))));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(friendlyClerkError(error, flow: AuthErrorFlow.google)),
+        ),
+      );
     } finally {
       if (mounted) {
         setState(() {

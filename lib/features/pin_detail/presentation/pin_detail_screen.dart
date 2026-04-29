@@ -115,7 +115,11 @@ class _PinDetailScreenState extends ConsumerState<PinDetailScreen> {
   }
 
   Widget _buildDetail(BuildContext context, PinModel pin) {
-    final saved = ref.watch(savedPinIdsProvider).contains(pin.id);
+    final saved = ref.watch(
+      localSavedStoreProvider.select(
+        (state) => state.savedPins.any((savedPin) => savedPin.id == pin.id),
+      ),
+    );
     final imageRatio = 1 / math.min(pin.heightRatio, 1.78);
 
     return Scaffold(
@@ -203,9 +207,14 @@ class _PinDetailScreenState extends ConsumerState<PinDetailScreen> {
                 onComment: () => _showComments(pin),
                 onShare: () => _showShare(pin),
                 onMore: () => PinCard.showPinMenu(context),
-                onSave: () => ref
-                    .read(savedContentControllerProvider)
-                    .toggleSavedPin(pin),
+                onSave: () {
+                  final store = ref.read(localSavedStoreProvider.notifier);
+                  if (saved) {
+                    store.unsavePin(pin.id);
+                    return;
+                  }
+                  store.savePin(pin);
+                },
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(22, 10, 22, 0),

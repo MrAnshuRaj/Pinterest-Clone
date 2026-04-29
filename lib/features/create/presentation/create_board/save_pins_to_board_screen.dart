@@ -34,7 +34,12 @@ class _SavePinsToBoardScreenState extends ConsumerState<SavePinsToBoardScreen> {
             PinterestBackHeader(
               title: 'Save some Pins to your board',
               leading: IconButton(
-                onPressed: () => context.go('/saved'),
+                onPressed: () {
+                  ref
+                      .read(localSavedStoreProvider.notifier)
+                      .setSelectedTab(savedTabFromIndex(savedBoardsTabIndex));
+                  context.go('/saved?tab=boards');
+                },
                 icon: const Icon(
                   Icons.close_rounded,
                   color: Colors.white,
@@ -94,14 +99,24 @@ class _SavePinsToBoardScreenState extends ConsumerState<SavePinsToBoardScreen> {
     final selectedPins = pins
         .where((pin) => _selected.contains(pin.id))
         .toList(growable: false);
-    final controller = ref.read(savedContentControllerProvider);
-    await controller.addPinsToBoard(widget.boardId, selectedPins);
-    for (final pin in selectedPins) {
-      await controller.savePin(pin);
+    debugPrint(
+      '[create-board] update boardId=${widget.boardId} selectedPins=${selectedPins.length}',
+    );
+    try {
+      ref
+          .read(localSavedStoreProvider.notifier)
+          .addPinsToBoard(widget.boardId, selectedPins);
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Board created')));
+      context.go('/saved?tab=boards');
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not save board pins right now.\n$error')),
+      );
     }
-    ref.read(savedTabProvider.notifier).state = 1;
-    if (!mounted) return;
-    context.go('/saved');
   }
 }
 

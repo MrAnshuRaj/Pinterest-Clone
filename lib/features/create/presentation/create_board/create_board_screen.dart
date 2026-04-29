@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../features/profile/presentation/settings/settings_widgets.dart';
 import '../../../../features/saved/application/saved_providers.dart';
 import '../../../../features/saved/data/models/board_model.dart';
+import '../create_debug_error.dart';
 
 class CreateBoardScreen extends ConsumerStatefulWidget {
   const CreateBoardScreen({super.key});
@@ -151,12 +152,13 @@ class _CreateBoardScreenState extends ConsumerState<CreateBoardScreen> {
     setState(() => _isSubmitting = true);
 
     final now = DateTime.now();
+    final boardId = now.millisecondsSinceEpoch.toString();
     try {
-      final boardId = await ref
-          .read(savedContentControllerProvider)
+      ref
+          .read(localSavedStoreProvider.notifier)
           .createBoard(
             BoardModel(
-              id: '',
+              id: boardId,
               name: _nameController.text.trim(),
               coverImageUrls: const [],
               pinIds: const [],
@@ -169,21 +171,21 @@ class _CreateBoardScreenState extends ConsumerState<CreateBoardScreen> {
 
       if (!mounted) return;
 
-      if (boardId == null || boardId.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('You need to be signed in before creating a board.'),
-          ),
-        );
-        return;
-      }
-
       context.go('/create/board/$boardId/save-pins');
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return;
+      final path = 'local/in-memory/boards/$boardId';
+      debugPrint('[create-board] error path=$path error=$error');
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Could not create board right now. Please try again.'),
+        SnackBar(
+          duration: const Duration(seconds: 8),
+          content: Text(
+            formatCreateDebugError(
+              error,
+              operation: 'Create Board',
+              path: path,
+            ),
+          ),
         ),
       );
     } finally {

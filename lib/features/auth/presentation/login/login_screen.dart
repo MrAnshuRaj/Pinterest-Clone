@@ -47,7 +47,33 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _handleGoogle() async {
-    await _runAuth((service) => service.signInWithGoogle(context));
+    FocusScope.of(context).unfocus();
+    debugPrint('[auth][google] button tapped');
+
+    if (!isClerkConfigured) {
+      setState(() {
+        _error =
+            'Clerk is not configured. Run with --dart-define=CLERK_PUBLISHABLE_KEY=your_key_here.';
+      });
+      return;
+    }
+
+    ref.read(loginLoadingProvider.notifier).state = true;
+
+    try {
+      final authState = ClerkAuth.of(context, listen: false);
+      final service = ref.read(clerkAuthServiceProvider(authState));
+      await service.signInWithGoogle(context);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _error = friendlyClerkError(error, flow: AuthErrorFlow.google);
+      });
+    } finally {
+      if (mounted) {
+        ref.read(loginLoadingProvider.notifier).state = false;
+      }
+    }
   }
 
   Future<void> _handleEmailLogin() async {
@@ -79,24 +105,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       final authState = ClerkAuth.of(context, listen: false);
       final service = ref.read(clerkAuthServiceProvider(authState));
       await action(service);
-      final user = authState.user;
-      if (user != null) {
-        await ref
-            .read(userProfileRepositoryProvider)
-            .getOrCreateProfileFromClerk(user: user);
-        await ref
-            .read(appSettingsRepositoryProvider)
-            .ensureDefaultSettings(user.id);
-        await ref
-            .read(inboxRepositoryProvider)
-            .seedDefaultUpdatesIfEmpty(user.id);
-      }
+      await _syncSignedInUser(authState);
       if (!mounted) return;
       context.go('/main');
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        _error = friendlyClerkError(error);
+        _error = friendlyClerkError(error, flow: AuthErrorFlow.emailLogin);
       });
     } finally {
       if (mounted) {
@@ -116,6 +131,35 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  Future<void> _syncSignedInUser(ClerkAuthState authState) async {
+    final user = authState.user;
+    if (user == null) {
+      return;
+    }
+
+    final preferredEmail = user.email?.trim();
+    final preferredName = user.name.trim();
+    final preferredUsername =
+        preferredEmail != null &&
+            preferredEmail.isNotEmpty &&
+            preferredEmail.contains('@')
+        ? preferredEmail.split('@').first.trim()
+        : null;
+
+    await ref
+        .read(userProfileRepositoryProvider)
+        .getOrCreateProfileFromClerk(
+          user: user,
+          preferredName: preferredName.isEmpty ? null : preferredName,
+          preferredEmail: preferredEmail,
+          preferredUsername: preferredUsername,
+        );
+    await ref
+        .read(appSettingsRepositoryProvider)
+        .ensureDefaultSettings(user.id);
+    await ref.read(inboxRepositoryProvider).seedDefaultUpdatesIfEmpty(user.id);
   }
 
   @override

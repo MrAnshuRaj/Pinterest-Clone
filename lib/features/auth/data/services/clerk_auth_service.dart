@@ -1,7 +1,10 @@
 import 'package:clerk_auth/clerk_auth.dart' as clerk;
 import 'package:clerk_flutter/clerk_flutter.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/widgets.dart';
+import 'package:url_launcher/url_launcher.dart';
 
+import '../../../../core/config/auth_config.dart';
 import '../../../../core/config/clerk_config.dart';
 
 class ClerkAuthService {
@@ -19,6 +22,9 @@ class ClerkAuthService {
     required String fullName,
   }) async {
     _ensureConfigured();
+    debugPrint(
+      '[auth][signup] creating Clerk account for email=${email.trim()}',
+    );
 
     final names = _splitName(fullName);
     final strategy = _authState.env.supportsEmailCode
@@ -51,6 +57,7 @@ class ClerkAuthService {
 
   Future<void> verifyEmailCode({required String code}) async {
     _ensureConfigured();
+    debugPrint('[auth][email_verify] verifying code');
 
     await _authState.attemptSignUp(
       strategy: clerk.Strategy.emailCode,
@@ -58,7 +65,9 @@ class ClerkAuthService {
     );
 
     if (!_authState.isSignedIn) {
-      throw ClerkAuthFailure('That code did not finish verification.');
+      throw ClerkEmailVerificationFailure(
+        'Please check the verification code and try again.',
+      );
     }
   }
 
@@ -67,6 +76,7 @@ class ClerkAuthService {
     required String password,
   }) async {
     _ensureConfigured();
+    debugPrint('[auth][email_login] attempting sign-in email=${email.trim()}');
 
     await _authState.resetClient();
     await _authState.attemptSignIn(
@@ -76,30 +86,59 @@ class ClerkAuthService {
     );
 
     if (!_authState.isSignedIn) {
-      throw ClerkAuthFailure('We could not finish signing you in.');
+      throw ClerkEmailLoginFailure('Invalid email or password.');
     }
   }
 
-  Future<void> signInWithGoogle([BuildContext? context]) async {
+  Future<void> signInWithGoogle(BuildContext context) async {
     _ensureConfigured();
-    _ensureGoogleOauthConfigured();
+    final redirectUri = clerkRedirectUriFor(
+      context,
+      clerk.Strategy.oauthGoogle,
+    );
+    debugPrint('[auth][google] starting Clerk OAuth redirect=$redirectUri');
 
-    if (context == null) {
-      throw ClerkAuthFailure(
-        'Google sign-in needs Clerk OAuth setup to finish in-app.',
+    try {
+      await _authState.resetClient();
+      await _authState.oauthSignIn(
+        strategy: clerk.Strategy.oauthGoogle,
+        redirect: redirectUri,
       );
-    }
 
-    if (!_authState.env.oauthStrategies.contains(clerk.Strategy.oauthGoogle)) {
-      throw ClerkAuthFailure(
-        'Enable Google OAuth in your Clerk dashboard for this app.',
+      final verificationUrl = _authState
+          .client
+          .signIn
+          ?.firstFactorVerification
+          ?.externalVerificationRedirectUrl;
+      if (verificationUrl == null || verificationUrl.trim().isEmpty) {
+        throw ClerkGoogleAuthFailure(
+          'Google sign-in could not start. Check the Clerk Google connection and redirect URL.',
+        );
+      }
+
+      final launched = await launchUrl(
+        Uri.parse(verificationUrl),
+        mode: LaunchMode.externalApplication,
       );
-    }
+      if (!launched) {
+        throw ClerkGoogleAuthFailure(
+          'Could not open the browser for Google sign-in.',
+        );
+      }
 
-    await _authState.ssoSignIn(context, clerk.Strategy.oauthGoogle);
-    if (!_authState.isSignedIn) {
-      throw ClerkAuthFailure(
-        'Google sign-in did not finish. Check the Clerk Google OAuth setup.',
+      debugPrint('[auth][google] browser launched');
+    } on clerk.ClerkError catch (error) {
+      debugPrint('[auth][google] Clerk OAuth failed error=$error');
+      throw ClerkGoogleAuthFailure(
+        'Google sign-in failed. Check the Clerk Google connection and redirect URL.',
+      );
+    } catch (error) {
+      debugPrint('[auth][google] unexpected OAuth failure error=$error');
+      if (error is ClerkGoogleAuthFailure) {
+        rethrow;
+      }
+      throw ClerkGoogleAuthFailure(
+        'Google sign-in failed. Check the Clerk Google connection and redirect URL.',
       );
     }
   }
@@ -109,6 +148,7 @@ class ClerkAuthService {
   }
 
   Future<void> syncOnboardingProfileToClerk({
+    String? fullName,
     required DateTime birthday,
     required String gender,
     required String country,
@@ -116,7 +156,10 @@ class ClerkAuthService {
   }) async {
     if (!_authState.isSignedIn) return;
 
+    final names = _splitName(fullName ?? '');
     await _authState.updateUser(
+      firstName: names.firstName,
+      lastName: names.lastName,
       metadata: {
         'birthday': birthday.toIso8601String(),
         'gender': gender,
@@ -130,14 +173,6 @@ class ClerkAuthService {
     if (!isClerkConfigured) {
       throw ClerkAuthFailure(
         'Clerk is not configured. Run with --dart-define=CLERK_PUBLISHABLE_KEY=your_key_here.',
-      );
-    }
-  }
-
-  void _ensureGoogleOauthConfigured() {
-    if (!isClerkGoogleOauthConfigured) {
-      throw ClerkAuthFailure(
-        'Google OAuth is not configured for Clerk in this app yet.',
       );
     }
   }
@@ -163,29 +198,79 @@ class ClerkEmailVerificationRequired implements Exception {
   const ClerkEmailVerificationRequired();
 }
 
+class ClerkEmailVerificationFailure implements Exception {
+  ClerkEmailVerificationFailure(this.message);
+
+  final String message;
+}
+
+class ClerkEmailLoginFailure implements Exception {
+  ClerkEmailLoginFailure(this.message);
+
+  final String message;
+}
+
+class ClerkGoogleAuthFailure implements Exception {
+  ClerkGoogleAuthFailure(this.message);
+
+  final String message;
+}
+
 class ClerkAuthFailure implements Exception {
   ClerkAuthFailure(this.message);
 
   final String message;
 }
 
-String friendlyClerkError(Object error) {
+enum AuthErrorFlow { generic, signup, emailLogin, emailVerification, google }
+
+String friendlyClerkError(
+  Object error, {
+  AuthErrorFlow flow = AuthErrorFlow.generic,
+}) {
   debugPrint('Clerk auth error: $error');
 
   if (error is ClerkAuthFailure) return error.message;
+  if (error is ClerkEmailLoginFailure) return error.message;
+  if (error is ClerkGoogleAuthFailure) return error.message;
   if (error is ClerkEmailVerificationRequired) {
     return 'Check your email for the verification code.';
   }
+  if (error is ClerkEmailVerificationFailure) {
+    return error.message;
+  }
   if (error is clerk.ClerkError) {
-    return _friendlyMessage(error.toString());
+    return _friendlyMessage(error.toString(), flow: flow);
   }
 
-  return _friendlyMessage(error.toString());
+  return _friendlyMessage(error.toString(), flow: flow);
 }
 
-String _friendlyMessage(String raw) {
+String _friendlyMessage(String raw, {required AuthErrorFlow flow}) {
   final message = raw.toLowerCase();
 
+  if (flow == AuthErrorFlow.google) {
+    if (message.contains('network') || message.contains('socket')) {
+      return 'Please check your connection and try again.';
+    }
+    if (message.contains('cancel')) {
+      return 'Google sign-in was cancelled.';
+    }
+    if (message.contains('browser') || message.contains('launch')) {
+      return 'Could not open the browser for Google sign-in.';
+    }
+    return 'Google sign-in failed. Check the Clerk Google connection and redirect URL.';
+  }
+  if (flow == AuthErrorFlow.emailVerification) {
+    return 'Please check the verification code and try again.';
+  }
+  if (flow == AuthErrorFlow.emailLogin &&
+      (message.contains('identifier') ||
+          message.contains('not found') ||
+          message.contains('password') ||
+          message.contains('invalid'))) {
+    return 'Invalid email or password.';
+  }
   if (message.contains('invalid') && message.contains('email')) {
     return 'Please enter a valid email address.';
   }
@@ -205,7 +290,9 @@ String _friendlyMessage(String raw) {
     return 'Please check your connection and try again.';
   }
   if (message.contains('verification') || message.contains('code')) {
-    return 'Please check the verification code and try again.';
+    return flow == AuthErrorFlow.signup
+        ? 'Check your email for the verification code.'
+        : 'Something went wrong with authentication. Please try again.';
   }
 
   return 'Something went wrong with authentication. Please try again.';

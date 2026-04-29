@@ -1,38 +1,54 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 
-import '../../../../core/firebase/firestore_refs.dart';
 import '../../../home/data/models/pin_model.dart';
 import '../models/board_model.dart';
+import '../local/saved_content_local_store.dart';
 
 class BoardsRepository {
-  BoardsRepository({FirebaseFirestore? firestore})
-    : _refs = FirestoreRefs(firestore ?? FirebaseFirestore.instance);
+  BoardsRepository(this._localStore);
 
-  final FirestoreRefs _refs;
+  static const _collection = 'boards';
+  final SavedContentLocalStore _localStore;
 
   Stream<List<BoardModel>> watchBoards(String userId) {
-    return _refs
-        .boards(userId)
-        .orderBy('updatedAt', descending: true)
-        .snapshots()
-        .map(
-          (snapshot) => snapshot.docs
-              .map((doc) => BoardModel.fromMap(doc.data(), id: doc.id))
-              .toList(growable: false),
-        );
+    return _localStore
+        .watchCollection(userId, _collection)
+        .handleError((error, stackTrace) {
+          debugPrint('[saved] boards stream error userId=$userId error=$error');
+        })
+        .map((snapshot) {
+          final boards =
+              snapshot
+                  .map(
+                    (doc) =>
+                        BoardModel.fromMap(doc, id: doc['id'] as String? ?? ''),
+                  )
+                  .toList(growable: false)
+                ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+          debugPrint(
+            '[saved] watch local path=$_collection/$userId count=${boards.length}',
+          );
+          return boards;
+        });
   }
 
   Future<String> createBoard(String userId, BoardModel board) async {
-    final doc = board.id.isEmpty
-        ? _refs.boards(userId).doc()
-        : _refs.boardDoc(userId, board.id);
+    final boardId = board.id.isEmpty ? _nextId('board') : board.id;
     final now = DateTime.now();
-    await doc.set(
-      board
-          .copyWith(id: doc.id, createdAt: board.createdAt, updatedAt: now)
-          .toMap(),
+    final payload = board
+        .copyWith(id: boardId, createdAt: board.createdAt, updatedAt: now)
+        .toMap();
+    debugPrint(
+      '[saved] write board userId=$userId local=$_collection/$boardId data=$payload',
     );
-    return doc.id;
+    await _localStore.updateCollection(userId, _collection, (current) {
+      final next = current
+          .where((item) => (item['id'] as String? ?? '') != boardId)
+          .toList(growable: true);
+      next.insert(0, _boardStorageMap(payload));
+      return next;
+    });
+    return boardId;
   }
 
   Future<void> addPinsToBoard(
@@ -40,29 +56,41 @@ class BoardsRepository {
     String boardId,
     List<PinModel> pins,
   ) async {
-    final doc = _refs.boardDoc(userId, boardId);
-    await _refs.boards(userId).firestore.runTransaction((transaction) async {
-      final snapshot = await transaction.get(doc);
-      if (!snapshot.exists) return;
-
-      final board = BoardModel.fromMap(
-        snapshot.data() ?? {},
-        id: boardId,
+    await _localStore.updateCollection(userId, _collection, (current) {
+      final next = current.toList(growable: true);
+      final index = next.indexWhere(
+        (item) => (item['id'] as String? ?? '') == boardId,
       );
+      if (index == -1) {
+        debugPrint(
+          '[saved] update board skipped because local=$_collection/$boardId does not exist',
+        );
+        throw StateError('Board "$boardId" does not exist.');
+      }
+
+      final board = BoardModel.fromMap(next[index], id: boardId);
       final nextPinIds = {
         ...board.pinIds,
         ...pins.map((pin) => pin.id),
-      }.toList();
+      }.toList(growable: false);
       final nextCoverUrls = {
         ...pins.map((pin) => pin.imageUrl),
         ...board.coverImageUrls,
-      }.take(4).toList();
+      }.take(4).toList(growable: false);
+      debugPrint(
+        '[saved] update board userId=$userId local=$_collection/$boardId pinCount=${nextPinIds.length} coverCount=${nextCoverUrls.length}',
+      );
 
-      transaction.update(doc, {
-        'pinIds': nextPinIds,
-        'coverImageUrls': nextCoverUrls,
-        'updatedAt': Timestamp.fromDate(DateTime.now()),
-      });
+      next[index] = _boardStorageMap(
+        board
+            .copyWith(
+              pinIds: nextPinIds,
+              coverImageUrls: nextCoverUrls,
+              updatedAt: DateTime.now(),
+            )
+            .toMap(),
+      );
+      return next;
     });
   }
 
@@ -70,14 +98,49 @@ class BoardsRepository {
     String userId,
     String boardId,
     Map<String, dynamic> data,
-  ) {
-    return _refs.boardDoc(userId, boardId).set({
-      ...data,
-      'updatedAt': Timestamp.fromDate(DateTime.now()),
-    }, SetOptions(merge: true));
+  ) async {
+    debugPrint(
+      '[saved] merge board userId=$userId local=$_collection/$boardId data=$data',
+    );
+    await _localStore.updateCollection(userId, _collection, (current) {
+      final next = current.toList(growable: true);
+      final index = next.indexWhere(
+        (item) => (item['id'] as String? ?? '') == boardId,
+      );
+      if (index == -1) {
+        throw StateError('Board "$boardId" does not exist.');
+      }
+
+      next[index] = _boardStorageMap({
+        ...next[index],
+        ...data,
+        'id': boardId,
+        'updatedAt': DateTime.now().toIso8601String(),
+      });
+      return next;
+    });
   }
 
-  Future<void> deleteBoard(String userId, String boardId) {
-    return _refs.boardDoc(userId, boardId).delete();
+  Future<void> deleteBoard(String userId, String boardId) async {
+    await _localStore.updateCollection(userId, _collection, (current) {
+      return current
+          .where((item) => (item['id'] as String? ?? '') != boardId)
+          .toList(growable: false);
+    });
   }
+
+  Map<String, dynamic> _boardStorageMap(Map<String, dynamic> value) {
+    return {
+      ...value,
+      'createdAt': value['createdAt'] is String
+          ? value['createdAt']
+          : (value['createdAt'] as DateTime?)?.toIso8601String(),
+      'updatedAt': value['updatedAt'] is String
+          ? value['updatedAt']
+          : (value['updatedAt'] as DateTime?)?.toIso8601String(),
+    };
+  }
+
+  String _nextId(String prefix) =>
+      '$prefix-${DateTime.now().microsecondsSinceEpoch}';
 }

@@ -59,9 +59,47 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       _pronouns.text != _initial.pronouns ||
       _showAllPins != _initial.showAllPins;
 
+  bool _matches(UserProfileModel other) {
+    return _initial.name == other.name &&
+        _initial.username == other.username &&
+        _initial.email == other.email &&
+        _initial.avatarInitial == other.avatarInitial &&
+        _initial.website == other.website &&
+        _initial.bio == other.bio &&
+        _initial.pronouns == other.pronouns &&
+        _initial.showAllPins == other.showAllPins;
+  }
+
+  void _refreshFromProfile(UserProfileModel profile) {
+    _initial = profile;
+    _name.text = profile.name;
+    _username.text = profile.username;
+    _website.text = profile.website;
+    _bio.text = profile.bio;
+    _pronouns.text = profile.pronouns;
+    _showAllPins = profile.showAllPins;
+  }
+
   @override
   Widget build(BuildContext context) {
     final profileAsync = ref.watch(userProfileProvider);
+    final profile = ref.watch(profileProvider);
+    if (profileAsync.hasError) {
+      return Scaffold(
+        backgroundColor: Colors.black,
+        body: PinterestStatusView(
+          message: friendlyProfileLoadError(profileAsync.error!),
+        ),
+      );
+    }
+    if (!_dirty && !_matches(profile)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() {
+          _refreshFromProfile(profile);
+        });
+      });
+    }
     if (profileAsync.isLoading && _initial.name.isEmpty) {
       return const Scaffold(
         backgroundColor: Colors.black,

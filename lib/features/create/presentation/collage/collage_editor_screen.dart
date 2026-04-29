@@ -145,8 +145,8 @@ class _CollageEditorScreenState extends ConsumerState<CollageEditorScreen> {
   }
 
   Future<void> _saveDraft() async {
-    await ref
-        .read(savedContentControllerProvider)
+    ref
+        .read(localSavedStoreProvider.notifier)
         .saveCollageDraft(_collage(isDraft: true));
     if (!mounted) return;
     ScaffoldMessenger.of(
@@ -164,7 +164,7 @@ class _CollageEditorScreenState extends ConsumerState<CollageEditorScreen> {
           ]
         : _items.map((item) => item.imageUrl).toList();
     return CreatedCollageModel(
-      id: 'collage-${DateTime.now().microsecondsSinceEpoch}',
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
       title: title,
       description: '',
       imageUrls: imageUrls,

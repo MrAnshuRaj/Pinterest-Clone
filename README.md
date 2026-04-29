@@ -4,7 +4,7 @@ A pinterest clone
 
 ## Clerk setup
 
-This app uses `clerk_flutter` for email/password auth, session restore, Google sign-in, and logout.
+This app uses `clerk_flutter` for email/password auth, session restore, Google OAuth redirect sign-in, and logout.
 
 1. Create an app in the Clerk dashboard.
 2. Enable Email/password authentication.
@@ -15,7 +15,30 @@ This app uses `clerk_flutter` for email/password auth, session restore, Google s
 flutter run --dart-define=CLERK_PUBLISHABLE_KEY=your_key_here
 ```
 
-Google OAuth may require redirect/deep-link setup in your Clerk dashboard and mobile app settings, depending on how you configure the provider.
+## Google sign-in setup
+
+This app uses Clerk's redirect-based OAuth flow for Google sign-in. No native `google_sign_in` SDK is used.
+
+1. Enable Google in the Clerk dashboard.
+2. Add `yourapp://auth-callback` to the Clerk Google OAuth redirect URLs.
+3. Keep the Android callback intent filter in `android/app/src/main/AndroidManifest.xml`:
+
+```xml
+<intent-filter>
+    <action android:name="android.intent.action.VIEW"/>
+    <category android:name="android.intent.category.DEFAULT"/>
+    <category android:name="android.intent.category.BROWSABLE"/>
+    <data android:scheme="yourapp" android:host="auth-callback"/>
+</intent-filter>
+```
+
+4. Run the app with:
+
+```bash
+flutter run --dart-define=CLERK_PUBLISHABLE_KEY=your_key_here
+```
+
+Google sign-in now opens the browser on Android and returns to the app through the custom-scheme callback.
 
 ## Firebase / Firestore
 

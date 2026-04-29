@@ -14,6 +14,7 @@ class CreatedPinModel {
     required this.allowComments,
     required this.showSimilarProducts,
     required this.createdAt,
+    required this.updatedAt,
   });
 
   final String id;
@@ -27,25 +28,29 @@ class CreatedPinModel {
   final bool allowComments;
   final bool showSimilarProducts;
   final DateTime createdAt;
+  final DateTime updatedAt;
 
   factory CreatedPinModel.fromMap(Map<String, dynamic> map, {String? id}) {
+    final now = DateTime.now();
     return CreatedPinModel(
       id: id ?? map['id'] as String? ?? '',
-      title: map['title'] as String? ?? '',
-      description: map['description'] as String? ?? '',
-      link: map['link'] as String? ?? '',
-      imageUrl: map['imageUrl'] as String? ?? '',
+      title: (map['title'] as String? ?? '').trim(),
+      description: (map['description'] as String? ?? '').trim(),
+      link: (map['link'] as String? ?? '').trim(),
+      imageUrl: (map['imageUrl'] as String? ?? '').trim(),
       boardId: map['boardId'] as String?,
       topics: stringListFrom(map['topics']),
-      altText: map['altText'] as String? ?? '',
+      altText: (map['altText'] as String? ?? '').trim(),
       allowComments: map['allowComments'] as bool? ?? true,
       showSimilarProducts: map['showSimilarProducts'] as bool? ?? true,
-      createdAt: parseFirestoreDate(map['createdAt']),
+      createdAt: parseFirestoreDate(map['createdAt'], fallback: now),
+      updatedAt: parseFirestoreDate(map['updatedAt'], fallback: now),
     );
   }
 
   Map<String, dynamic> toMap() {
     return {
+      'id': id,
       'title': title,
       'description': description,
       'link': link,
@@ -56,6 +61,7 @@ class CreatedPinModel {
       'allowComments': allowComments,
       'showSimilarProducts': showSimilarProducts,
       'createdAt': timestampFromDate(createdAt),
+      'updatedAt': timestampFromDate(updatedAt),
     };
   }
 
@@ -71,6 +77,7 @@ class CreatedPinModel {
     bool? allowComments,
     bool? showSimilarProducts,
     DateTime? createdAt,
+    DateTime? updatedAt,
   }) {
     return CreatedPinModel(
       id: id ?? this.id,
@@ -84,6 +91,7 @@ class CreatedPinModel {
       allowComments: allowComments ?? this.allowComments,
       showSimilarProducts: showSimilarProducts ?? this.showSimilarProducts,
       createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
     );
   }
 

@@ -383,18 +383,26 @@ class _SignupFlowScreenState extends ConsumerState<SignupFlowScreen> {
     ref.read(_provider.notifier).goToTuning();
 
     try {
+      debugPrint('[auth][signup] finishing signup');
       final authState = ClerkAuth.of(context, listen: false);
       final service = ref.read(clerkAuthServiceProvider(authState));
       final controller = ref.read(_provider.notifier);
       final signupState = ref.read(_provider);
       await controller.createClerkAccount(service);
-      await controller.syncOnboardingProfileToClerk(service);
+      await service.syncOnboardingProfileToClerk(
+        fullName: signupState.fullName,
+        birthday: signupState.birthday,
+        gender: signupState.gender,
+        country: signupState.country,
+        selectedInterests: signupState.selectedInterests,
+      );
       final user = authState.user;
       if (user != null) {
         await ref
             .read(userProfileRepositoryProvider)
             .getOrCreateProfileFromClerk(
               user: user,
+              preferredName: signupState.fullName,
               birthday: signupState.birthday,
               gender: signupState.gender,
               country: signupState.country,
@@ -421,7 +429,7 @@ class _SignupFlowScreenState extends ConsumerState<SignupFlowScreen> {
       if (!mounted) return;
       ref.read(_provider.notifier).goBack();
       setState(() {
-        _authError = friendlyClerkError(error);
+        _authError = friendlyClerkError(error, flow: AuthErrorFlow.signup);
         _isCompleting = false;
       });
       return;
@@ -436,6 +444,7 @@ class _SignupFlowScreenState extends ConsumerState<SignupFlowScreen> {
     if (_isVerifyingEmail) return;
 
     FocusScope.of(context).unfocus();
+    debugPrint('[auth][email_verify] preparing code');
 
     if (!isClerkConfigured) {
       setState(() {
@@ -454,14 +463,21 @@ class _SignupFlowScreenState extends ConsumerState<SignupFlowScreen> {
       final authState = ClerkAuth.of(context, listen: false);
       final service = ref.read(clerkAuthServiceProvider(authState));
       await service.verifyEmailCode(code: _verificationController.text);
-      await ref.read(_provider.notifier).syncOnboardingProfileToClerk(service);
       final user = authState.user;
       final state = ref.read(_provider);
+      await service.syncOnboardingProfileToClerk(
+        fullName: state.fullName,
+        birthday: state.birthday,
+        gender: state.gender,
+        country: state.country,
+        selectedInterests: state.selectedInterests,
+      );
       if (user != null) {
         await ref
             .read(userProfileRepositoryProvider)
             .getOrCreateProfileFromClerk(
               user: user,
+              preferredName: state.fullName,
               birthday: state.birthday,
               gender: state.gender,
               country: state.country,
@@ -482,7 +498,10 @@ class _SignupFlowScreenState extends ConsumerState<SignupFlowScreen> {
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        _authError = friendlyClerkError(error);
+        _authError = friendlyClerkError(
+          error,
+          flow: AuthErrorFlow.emailVerification,
+        );
       });
     } finally {
       if (mounted) {
